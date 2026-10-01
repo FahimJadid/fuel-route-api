@@ -13,7 +13,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 def test_read_gazetteer_strips_suffix_and_ranks_incorporated_first():
     records = {record.name: record for record in read_gazetteer(FIXTURES / "gazetteer_sample.txt")}
 
-    assert set(records) == {"Big Cabin", "Alamosa", "Alamosa East"}
+    assert set(records) == {"Big Cabin", "Alamosa", "Alamosa East", "DeWitt"}
     assert records["Alamosa"].priority == 0
     assert records["Alamosa East"].priority == 1
     assert records["Alamosa"].land_area_sqmi == pytest.approx(4.424)
@@ -35,7 +35,7 @@ def test_import_places_upserts_on_source_id():
     import_places(read_gazetteer(FIXTURES / "gazetteer_sample.txt"))
     import_places(read_gazetteer(FIXTURES / "gazetteer_sample.txt"))
 
-    assert Place.objects.count() == 3
+    assert Place.objects.count() == 4
     big_cabin = Place.objects.get(source=PlaceSource.GAZETTEER, source_id="4006050")
     assert big_cabin.name_normalized == "BIG CABIN"
     assert big_cabin.name_key == "BIGCABIN"
@@ -62,7 +62,7 @@ def test_import_places_command_loads_every_source(capsys):
     )
 
     output = capsys.readouterr().out
-    assert "gazetteer: 3 places" in output
+    assert "gazetteer: 4 places" in output
     assert "gnis: 2 places" in output
     assert "aliases: 1 places" in output
     assert Place.objects.filter(state="OK", name_normalized="BIG CABIN").count() == 2
