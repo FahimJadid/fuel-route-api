@@ -17,6 +17,7 @@ staticfiles/
 
 # Raw downloads used to build data/ files
 data/*.zip
+data/raw/
 
 # Editors
 .idea/
