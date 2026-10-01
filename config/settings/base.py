@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "core",
     "geo",
     "stations",
+    "routing",
 ]
 
 MIDDLEWARE = [
@@ -85,7 +86,15 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO")},
     "loggers": {
         "django.server": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+        "httpx": {"level": "WARNING"},
     },
+}
+
+ROUTING = {
+    "OSRM_BASE_URL": env("OSRM_BASE_URL", default="https://router.project-osrm.org"),
+    "TIMEOUT_SECONDS": env.float("ROUTING_TIMEOUT_SECONDS", default=10.0),
+    "USER_AGENT": "fuel-route-api/0.1",
+    "SIMPLIFY_TOLERANCE_DEGREES": 0.001,
 }
 
 SPECTACULAR_SETTINGS = {
