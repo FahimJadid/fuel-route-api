@@ -1,0 +1,23 @@
+# Assessment material and personal notes never ship with the code
+requirements.md
+
+# Environment
+.env
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Django
+staticfiles/
+*.log
+
+# Raw downloads used to build data/ files
+data/*.zip
+
+# Editors
+.idea/
+.vscode/

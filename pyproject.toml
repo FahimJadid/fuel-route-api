@@ -1,0 +1,46 @@
+[project]
+name = "fuel-route-api"
+version = "0.1.0"
+description = "Plans cost-optimal fuel stops along a driving route within the USA"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "django>=6.1,<6.2",
+    "djangorestframework>=3.16",
+    "drf-spectacular>=0.28",
+    "django-environ>=0.12",
+    "psycopg[binary]>=3.2",
+    "redis>=5.2",
+    "httpx>=0.28",
+    "gunicorn>=23.0",
+    "python-json-logger>=3.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "factory-boy>=3.3",
+    "respx>=0.22",
+    "ruff>=0.9",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM", "DJ", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "core", "geo", "stations", "routing", "trips"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "--reuse-db --strict-markers -q"
