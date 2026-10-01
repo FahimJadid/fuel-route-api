@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "core",
     "geo",
+    "stations",
 ]
 
 MIDDLEWARE = [
