@@ -9,7 +9,7 @@ geocoding API or key. Both place sources are works of the US federal government
 | `fuel-prices-for-be-assessment.csv` | OPIS truck-stop retail diesel prices supplied with the assessment (8,151 rows, no coordinates) | assessment attachment |
 | `2026_Gaz_place_national.txt` | US Census Bureau Gazetteer, Places, 2026 vintage — every incorporated place and census-designated place with its internal-point coordinates (32,363 rows, unmodified) | [census.gov Gazetteer files](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html) |
 | `gnis_populated_places.csv.gz` | USGS Geographic Names Information System, "Populated Place" features, trimmed to the columns the importer needs (174,097 rows; historical features dropped) | [USGS GNIS downloads](https://www.usgs.gov/us-board-on-geographic-names/download-gnis-data) |
-| `city_aliases.csv` | Hand-maintained spellings that neither federal file resolves, with a note explaining each row | this repository |
+| `city_aliases.csv` | Hand-maintained spellings that neither place file resolves (20 of the 3,808 distinct city/state pairs in the price file), each with the coordinate it maps to and a note saying where that coordinate came from | this repository |
 
 ## Provenance
 
@@ -37,7 +37,10 @@ truck-stop towns, but not for New England towns (county subdivisions, not places
 unincorporated highway communities such as Sterling, ND or Dumont, CO. GNIS populated places
 fill that gap. Against this price file the Gazetteer alone resolves about 93% of the 3,808 distinct
 city/state pairs; Gazetteer plus GNIS resolves over 99%, and the remainder is listed in
-`city_aliases.csv`.
+`city_aliases.csv`. Those rows are New England towns and townships (civil divisions, not
+populated places), post-office names (Etters, PA), abbreviations (S Coffeyville) and a few
+locales; their coordinates come from the GNIS "Civil" or "Locale" feature of the same name,
+or from the Gazetteer place the station address actually sits in, as each row's note says.
 
 Coordinates are NAD83 in both files; the difference from WGS84 is under two metres in the
 contiguous US, so they are stored as EPSG:4326 without transformation.
