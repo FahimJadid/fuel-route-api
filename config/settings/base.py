@@ -95,6 +95,7 @@ ROUTING = {
     "TIMEOUT_SECONDS": env.float("ROUTING_TIMEOUT_SECONDS", default=10.0),
     "USER_AGENT": "fuel-route-api/0.1",
     "SIMPLIFY_TOLERANCE_DEGREES": 0.001,
+    "CACHE_SECONDS": env.int("ROUTE_CACHE_SECONDS", default=60 * 60 * 24),
 }
 
 SPECTACULAR_SETTINGS = {
