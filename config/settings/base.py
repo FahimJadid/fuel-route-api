@@ -17,9 +17,11 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "rest_framework",
     "drf_spectacular",
+    "core",
 ]
 
 MIDDLEWARE = [
+    "core.middleware.RequestLoggingMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
 ]
@@ -63,6 +65,25 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
+    "EXCEPTION_HANDLER": "core.exceptions.exception_handler",
+}
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "()": "pythonjsonlogger.json.JsonFormatter",
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "json"},
+    },
+    "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO")},
+    "loggers": {
+        "django.server": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+    },
 }
 
 SPECTACULAR_SETTINGS = {
