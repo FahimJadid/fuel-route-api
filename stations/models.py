@@ -1,4 +1,8 @@
 from django.contrib.gis.db import models
+from django.contrib.gis.db.models.functions import Transform
+from django.contrib.postgres.indexes import GistIndex
+
+PLANNING_SRID = 5070
 
 
 class Station(models.Model):
@@ -22,6 +26,10 @@ class Station(models.Model):
             models.CheckConstraint(
                 condition=models.Q(price_per_gallon__gt=0), name="station_price_positive"
             ),
+        ]
+        indexes = [
+            # The corridor query measures distance in the CONUS Albers projection (metres).
+            GistIndex(Transform("location", PLANNING_SRID), name="station_location_albers_idx"),
         ]
 
     def __str__(self) -> str:

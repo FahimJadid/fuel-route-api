@@ -14,6 +14,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",
     "django.contrib.gis",
     "rest_framework",
     "drf_spectacular",
@@ -96,6 +97,10 @@ ROUTING = {
     "USER_AGENT": "fuel-route-api/0.1",
     "SIMPLIFY_TOLERANCE_DEGREES": 0.001,
     "CACHE_SECONDS": env.int("ROUTE_CACHE_SECONDS", default=60 * 60 * 24),
+}
+
+FUEL_PLANNING = {
+    "CORRIDOR_MILES": env.float("FUEL_CORRIDOR_MILES", default=10.0),
 }
 
 SPECTACULAR_SETTINGS = {
