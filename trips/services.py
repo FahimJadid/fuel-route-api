@@ -27,6 +27,8 @@ class TripRequest:
     max_range_miles: float
     mpg: float
     initial_fuel_gallons: float = 0.0
+    end_fuel_gallons: float = 0.0
+    initial_fuel_price_per_gallon: Decimal | None = None
 
 
 def plan_trip(request: TripRequest) -> Trip:
@@ -41,14 +43,17 @@ def plan_trip(request: TripRequest) -> Trip:
         for s in corridor
     ]
     vehicle = (route.distance_miles, request.max_range_miles, request.mpg)
+    tank = {
+        "initial_fuel_gallons": request.initial_fuel_gallons,
+        "end_fuel_gallons": request.end_fuel_gallons,
+        "initial_fuel_price_per_gallon": request.initial_fuel_price_per_gallon,
+    }
     try:
-        plan = plan_fuel_stops(
-            candidates, *vehicle, initial_fuel_gallons=request.initial_fuel_gallons
-        )
+        plan = plan_fuel_stops(candidates, *vehicle, **tank)
     except NoFeasiblePlanError as exc:
         exc.details.update(_route_details(route))
         raise
-    baseline = _baseline(candidates, vehicle, request.initial_fuel_gallons)
+    baseline = _baseline(candidates, vehicle, tank)
 
     stations_by_id = {station.id: station for station in corridor}
     return Trip.objects.create(
@@ -62,6 +67,9 @@ def plan_trip(request: TripRequest) -> Trip:
         max_range_miles=_decimal(request.max_range_miles, "0.1"),
         mpg=_decimal(request.mpg, "0.01"),
         initial_fuel_gallons=_decimal(request.initial_fuel_gallons, "0.001"),
+        initial_fuel_price_per_gallon=request.initial_fuel_price_per_gallon,
+        end_fuel_gallons=_decimal(request.end_fuel_gallons, "0.001"),
+        fuel_ledger=_ledger_snapshot(plan),
         corridor_miles=_decimal(corridor_miles, "0.1"),
         stops=[
             _stop_snapshot(sequence, stop, stations_by_id[stop.station.id])
@@ -76,12 +84,40 @@ def plan_trip(request: TripRequest) -> Trip:
 
 
 def _baseline(
-    candidates: list[FuelStation], vehicle: tuple[float, float, float], initial_fuel: float
+    candidates: list[FuelStation], vehicle: tuple[float, float, float], tank: dict
 ) -> FuelPlan | None:
     try:
-        return plan_naive_fill_ups(candidates, *vehicle, initial_fuel_gallons=initial_fuel)
+        return plan_naive_fill_ups(candidates, *vehicle, **tank)
     except NoFeasiblePlanError:
         return None
+
+
+def _ledger_snapshot(plan: FuelPlan) -> dict:
+    ledger = plan.ledger
+    return {
+        "carried_in": {
+            "gallons": round(ledger.carried_in_gallons, 3),
+            "price_per_gallon": _money(ledger.carried_in_price),
+            "value": str(ledger.carried_in_value),
+        },
+        "purchased": {
+            "gallons": round(ledger.purchased_gallons, 3),
+            "cost": str(ledger.purchased_cost),
+        },
+        "consumed": {
+            "gallons": round(ledger.consumed_gallons, 3),
+            "cost": str(ledger.consumed_cost),
+        },
+        "carried_out": {
+            "gallons": round(ledger.carried_out_gallons, 3),
+            "price_per_gallon": _money(ledger.carried_out_price),
+            "value": str(ledger.carried_out_value),
+        },
+    }
+
+
+def _money(value: Decimal | None) -> str | None:
+    return None if value is None else str(value)
 
 
 def _stop_snapshot(sequence: int, stop: FuelStop, station: Station) -> dict:

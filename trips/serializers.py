@@ -61,11 +61,33 @@ class TripRequestSerializer(serializers.Serializer):
         "At most the tank capacity (max_range_miles / mpg).",
     )
 
+    end_fuel_gallons = serializers.FloatField(
+        min_value=0,
+        required=False,
+        default=0,
+        help_text="Fuel to arrive with so the next leg can carry it in; at most the tank capacity.",
+    )
+    initial_fuel_price_per_gallon = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        min_value=Decimal("0"),
+        required=False,
+        default=None,
+        allow_null=True,
+        help_text="What the fuel already in the tank cost per gallon on an earlier leg; "
+        "unknown or free when omitted.",
+    )
+
     def validate(self, attrs: dict) -> dict:
         capacity = attrs["max_range_miles"] / attrs["mpg"]
-        if attrs["initial_fuel_gallons"] > capacity:
-            message = f"Cannot exceed the tank capacity of {capacity:.2f} gallons."
-            raise serializers.ValidationError({"initial_fuel_gallons": message})
+        message = f"Cannot exceed the tank capacity of {capacity:.2f} gallons."
+        errors = {
+            name: message
+            for name in ("initial_fuel_gallons", "end_fuel_gallons")
+            if attrs[name] > capacity
+        }
+        if errors:
+            raise serializers.ValidationError(errors)
         return attrs
 
     def to_trip_request(self) -> TripRequest:
@@ -136,11 +158,30 @@ class AssumptionsSerializer(serializers.Serializer):
     mpg = serializers.DecimalField(max_digits=5, decimal_places=2)
     tank_gallons = serializers.DecimalField(max_digits=7, decimal_places=2)
     initial_fuel_gallons = serializers.DecimalField(max_digits=8, decimal_places=3)
+    end_fuel_gallons = serializers.DecimalField(max_digits=8, decimal_places=3)
     corridor_miles = serializers.DecimalField(max_digits=4, decimal_places=1)
     minimum_purchase_gallons = serializers.IntegerField()
     reserve_rule = serializers.CharField()
     detour_cost_modelled = serializers.BooleanField()
     routing_profile = serializers.CharField()
+
+
+class LedgerStockSerializer(serializers.Serializer):
+    gallons = serializers.FloatField()
+    price_per_gallon = serializers.DecimalField(max_digits=6, decimal_places=3, allow_null=True)
+    value = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class LedgerFlowSerializer(serializers.Serializer):
+    gallons = serializers.FloatField()
+    cost = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class FuelLedgerSerializer(serializers.Serializer):
+    carried_in = LedgerStockSerializer()
+    purchased = LedgerFlowSerializer()
+    consumed = LedgerFlowSerializer()
+    carried_out = LedgerStockSerializer()
 
 
 class LinksSerializer(serializers.Serializer):
@@ -157,6 +198,7 @@ class TripSerializer(serializers.ModelSerializer):
     totals = serializers.SerializerMethodField()
     starting_fuel = serializers.SerializerMethodField()
     savings = serializers.SerializerMethodField()
+    fuel_ledger = FuelLedgerSerializer(allow_null=True)
     assumptions = serializers.SerializerMethodField()
     links = serializers.SerializerMethodField()
 
@@ -174,6 +216,7 @@ class TripSerializer(serializers.ModelSerializer):
             "totals",
             "starting_fuel",
             "savings",
+            "fuel_ledger",
             "assumptions",
             "links",
             "created_at",
@@ -262,6 +305,7 @@ class TripSerializer(serializers.ModelSerializer):
                 "mpg": trip.mpg,
                 "tank_gallons": trip.max_range_miles / trip.mpg,
                 "initial_fuel_gallons": trip.initial_fuel_gallons,
+                "end_fuel_gallons": trip.end_fuel_gallons,
                 "corridor_miles": trip.corridor_miles,
                 "minimum_purchase_gallons": 0,
                 "reserve_rule": "fuel needed to reach the first stop is billed at that stop",

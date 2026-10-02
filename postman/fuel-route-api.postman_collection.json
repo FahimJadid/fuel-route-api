@@ -6,7 +6,8 @@
   },
   "variable": [
     {"key": "base_url", "value": "http://localhost:8000"},
-    {"key": "trip_id", "value": ""}
+    {"key": "trip_id", "value": ""},
+    {"key": "carried_price", "value": ""}
   ],
   "item": [
     {
@@ -70,6 +71,58 @@
         "body": {
           "mode": "raw",
           "raw": "{\n  \"origin\": \"Dallas, TX\",\n  \"destination\": \"Denver, CO\",\n  \"initial_fuel_gallons\": 30\n}"
+        }
+      }
+    },
+    {
+      "name": "Leg 1 - arrive with 5 gal in reserve",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('leg 1 carries fuel out', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const out = pm.response.json().fuel_ledger.carried_out;",
+              "  pm.expect(out.gallons).to.eql(5);",
+              "  pm.collectionVariables.set('carried_price', out.price_per_gallon);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/trips/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"origin\": \"Dallas, TX\",\n  \"destination\": \"Denver, CO\",\n  \"end_fuel_gallons\": 5\n}"
+        }
+      }
+    },
+    {
+      "name": "Leg 2 - carry that fuel in at its price",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('leg 2 carries fuel in', () => {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().fuel_ledger.carried_in.gallons).to.eql(5);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/trips/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"origin\": \"Denver, CO\",\n  \"destination\": \"Los Angeles, CA\",\n  \"initial_fuel_gallons\": 5,\n  \"initial_fuel_price_per_gallon\": \"{{carried_price}}\"\n}"
         }
       }
     },

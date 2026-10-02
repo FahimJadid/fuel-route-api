@@ -16,6 +16,11 @@ class Trip(models.Model):
     max_range_miles = models.DecimalField(max_digits=6, decimal_places=1)
     mpg = models.DecimalField(max_digits=5, decimal_places=2)
     initial_fuel_gallons = models.DecimalField(max_digits=8, decimal_places=3, default=0)
+    initial_fuel_price_per_gallon = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True
+    )
+    end_fuel_gallons = models.DecimalField(max_digits=8, decimal_places=3, default=0)
+    fuel_ledger = models.JSONField(null=True, blank=True)
     corridor_miles = models.DecimalField(max_digits=4, decimal_places=1, default=10)
     stops = models.JSONField(encoder=DjangoJSONEncoder)
     total_gallons = models.DecimalField(max_digits=8, decimal_places=3)

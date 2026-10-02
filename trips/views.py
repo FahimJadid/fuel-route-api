@@ -52,5 +52,10 @@ class TripMapView(View):
             return JsonResponse(error_payload("not_found", "Trip not found."), status=404)
         data = TripSerializer(trip).data
         map_data = {key: data[key] for key in ("origin", "destination", "route", "stops")}
-        context = {"trip": trip, "map_data": map_data, "savings": data["savings"]}
+        context = {
+            "trip": trip,
+            "map_data": map_data,
+            "savings": data["savings"],
+            "ledger": data["fuel_ledger"],
+        }
         return render(request, "trips/map.html", context)

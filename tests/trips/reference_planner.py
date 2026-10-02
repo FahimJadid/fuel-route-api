@@ -3,7 +3,8 @@
 Used as an independent oracle: the production planner may also top up partially, so its
 cost must never exceed this reference. Free starting fuel is modelled as a first layer of
 stations that can be reached without buying anything; the first purchase moves to the normal
-layer where every arrival happens with no fuel left.
+layer where every arrival happens with no fuel left. A required end reserve simply lengthens
+the final leg by the miles that reserve represents.
 """
 
 from decimal import Decimal
@@ -17,9 +18,11 @@ def reference_cost(
     max_range_miles: float,
     mpg: float,
     initial_fuel_gallons: float = 0.0,
+    end_fuel_gallons: float = 0.0,
 ) -> Decimal | None:
     free_miles = initial_fuel_gallons * mpg
-    if free_miles >= trip_miles:
+    target_miles = trip_miles + end_fuel_gallons * mpg
+    if free_miles >= target_miles:
         return Decimal(0)
     stations = sorted(s for s in stations if 0 <= s.route_mile < trip_miles)
     free_arrival: dict[int, float] = {}
@@ -38,8 +41,9 @@ def reference_cost(
         here = Decimal(0) if index in free_arrival else best.get(index)
         if here is None:
             continue
-        if trip_miles - station.route_mile <= max_range_miles:
-            total = here + _leg_cost(station, trip_miles - station.route_mile - leftover * mpg, mpg)
+        if target_miles - station.route_mile <= max_range_miles:
+            final_leg = target_miles - station.route_mile - leftover * mpg
+            total = here + _leg_cost(station, final_leg, mpg)
             finish = total if finish is None else min(finish, total)
         for nxt_index in range(index + 1, len(stations)):
             leg = stations[nxt_index].route_mile - station.route_mile

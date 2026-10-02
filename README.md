@@ -144,8 +144,12 @@ Content-Type: application/json
   "totals": {"gallons": "77.938", "cost": "211.07", "stops": 2},
   "starting_fuel": {"free_gallons": "0.000", "reserve_gallons": "17.550", "reserve_billed_at_stop": 1,
                     "reserve_cost": "47.16", "trip_gallons": "77.940"},
-  "savings": {"baseline": "fill the tank at the farthest reachable station", "baseline_cost": "...",
-              "baseline_stops": 2, "amount": "...", "percent": "..."},
+  "savings": {"baseline": "fill the tank at the farthest reachable station", "baseline_cost": "265.15",
+              "baseline_stops": 1, "amount": "54.08", "percent": "20.4"},
+  "fuel_ledger": {"carried_in": {"gallons": 0.0, "price_per_gallon": null, "value": "0.00"},
+                  "purchased": {"gallons": 77.938, "cost": "211.07"},
+                  "consumed": {"gallons": 77.938, "cost": "211.07"},
+                  "carried_out": {"gallons": 0.0, "price_per_gallon": null, "value": "0.00"}},
   "assumptions": {"max_range_miles": "500.0", "mpg": "10.00", "tank_gallons": "50.00",
                   "initial_fuel_gallons": "0.000", "corridor_miles": "10.0", "minimum_purchase_gallons": 0,
                   "reserve_rule": "fuel needed to reach the first stop is billed at that stop",
@@ -160,11 +164,38 @@ Content-Type: application/json
 breaks down the reserve: the first stop's `gallons` already include the 17.55 gallons burned to
 reach it, billed at that stop's price; `trip_gallons` equals `free_gallons` plus `totals.gallons`.
 
+### Fuel ledger: chaining legs
+
+Fuel in the tank is inventory. Each response carries a `fuel_ledger` that balances in gallons and
+dollars — `carried_in + purchased = consumed + carried_out` — with the tank valued at its running
+weighted-average cost, the way fleet accounting treats fuel on board. `totals.cost` stays "money
+spent on this trip"; `fuel_ledger.consumed.cost` is what the trip actually burned.
+
+To chain warehouse legs, ask the first leg to arrive with a reserve and hand what it carries
+out to the next one:
+
+```json
+POST /api/v1/trips/  {"origin": "Dallas, TX", "destination": "Denver, CO", "end_fuel_gallons": 5}
+→ "fuel_ledger": {"purchased": {"gallons": 82.938, "cost": "225.30"},
+                  "consumed":  {"gallons": 77.938, "cost": "211.60"},
+                  "carried_out": {"gallons": 5.0, "price_per_gallon": "2.740", "value": "13.70"}, ...}
+
+POST /api/v1/trips/  {"origin": "Denver, CO", "destination": "Los Angeles, CA",
+                      "initial_fuel_gallons": 5, "initial_fuel_price_per_gallon": "2.740"}
+→ "fuel_ledger": {"carried_in": {"gallons": 5.0, "price_per_gallon": "2.740", "value": "13.70"},
+                  "purchased": {"gallons": 98.713, "cost": "320.08"},
+                  "consumed":  {"gallons": 103.713, "cost": "333.78"}, ...}
+```
+
+The 5 gallons carried out of Denver are valued at $2.740 — the running average of the two stops
+on that leg, not the last pump's price — and are never bought again; their value is counted once,
+in the second leg's consumption. Without a price, carried-in fuel is treated as free, as before.
+
 ## API
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/trips/` | Plan a trip. Body: `origin`, `destination` (each either `"City, ST"` or `{"lat", "lng"}`), optional `max_range_miles` (50–2000, default 500), `mpg` (1–50, default 10) and `initial_fuel_gallons` (free fuel already in the tank, default 0, at most `max_range_miles / mpg`). Returns `201`. |
+| `POST` | `/api/v1/trips/` | Plan a trip. Body: `origin`, `destination` (each either `"City, ST"` or `{"lat", "lng"}`), optional `max_range_miles` (50–2000, default 500), `mpg` (1–50, default 10), `initial_fuel_gallons` (fuel already in the tank, default 0), `initial_fuel_price_per_gallon` (what that fuel cost on an earlier leg; omitted = unpriced) and `end_fuel_gallons` (fuel to arrive with, default 0). Both gallon figures are capped at the tank, `max_range_miles / mpg`. Returns `201`. |
 | `GET` | `/api/v1/trips/{id}/` | Fetch a planned trip. |
 | `GET` | `/api/v1/trips/{id}/map/` | The same trip rendered on a Leaflet map (HTML). |
 | `GET` | `/api/v1/health/` | Database and cache health; `503` when either is down. |
@@ -273,7 +304,8 @@ more time, in the order a fleet would ask for them:
 - Price the detour into the choice and expose a `max_detour_miles` limit (fleets use ~2 miles).
 - A per-stop time penalty or minimum purchase, which turns the greedy into a dynamic program
   over (station, fuel level) with a "fewer stops / cheapest" toggle.
-- Two reserves — a minimum on-board level and a required level at the destination.
+- A minimum on-board level at every point of the trip (the destination reserve already exists
+  as `end_fuel_gallons`).
 - Ex-tax pricing and network discounts, which can change which stop wins.
 - Station eligibility filters (chains, parking, amenities) and price timestamps.
 - A reconciliation endpoint comparing planned with purchased gallons.
