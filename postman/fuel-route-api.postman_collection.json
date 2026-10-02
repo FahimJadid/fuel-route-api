@@ -9,6 +9,18 @@
     {"key": "trip_id", "value": ""},
     {"key": "carried_price", "value": ""}
   ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "if (pm.response.code === 201) {",
+          "  pm.collectionVariables.set('trip_id', pm.response.json().id);",
+          "}"
+        ]
+      }
+    }
+  ],
   "item": [
     {
       "name": "Health",
@@ -21,8 +33,7 @@
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('created', () => pm.response.to.have.status(201));",
-              "pm.collectionVariables.set('trip_id', pm.response.json().id);"
+              "pm.test('created', () => pm.response.to.have.status(201));"
             ]
           }
         }

@@ -108,6 +108,8 @@ Content-Type: application/json
 ```json
 {
   "id": "5153c3a0-471e-4028-a560-1e14c6d231c9",
+  "links": {"self": "http://localhost:8000/api/v1/trips/5153c3a0-.../",
+            "map": "http://localhost:8000/api/v1/trips/5153c3a0-.../map/"},
   "origin": {"label": "Dallas, TX", "lat": 32.793333, "lng": -96.766513},
   "destination": {"label": "Denver, CO", "lat": 39.76185, "lng": -104.881105},
   "distance_miles": "779.4",
@@ -154,8 +156,6 @@ Content-Type: application/json
                   "initial_fuel_gallons": "0.000", "corridor_miles": "10.0", "minimum_purchase_gallons": 0,
                   "reserve_rule": "fuel needed to reach the first stop is billed at that stop",
                   "detour_cost_modelled": false, "routing_profile": "car"},
-  "links": {"self": "http://localhost:8000/api/v1/trips/5153c3a0-.../",
-            "map": "http://localhost:8000/api/v1/trips/5153c3a0-.../map/"},
   "created_at": "2026-10-02T05:15:22.118415Z"
 }
 ```

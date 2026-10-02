@@ -206,6 +206,7 @@ class TripSerializer(serializers.ModelSerializer):
         model = Trip
         fields = [
             "id",
+            "links",
             "origin",
             "destination",
             "distance_miles",
@@ -218,7 +219,6 @@ class TripSerializer(serializers.ModelSerializer):
             "savings",
             "fuel_ledger",
             "assumptions",
-            "links",
             "created_at",
         ]
 
