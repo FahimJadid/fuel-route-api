@@ -34,7 +34,7 @@ Compose plugin) and an internet connection for the routing engine and map tiles.
 
 1. **Clone and start the stack** (about a minute the first time, building the image):
    ```sh
-   git clone <this repository> fuel-route-api && cd fuel-route-api
+   git clone https://github.com/FahimJadid/fuel-route-api.git && cd fuel-route-api
    make up                     # Windows: copy .env.example to .env, then docker compose up -d --build
    ```
    `docker compose ps` should show `app` up and `db`/`redis` healthy.
