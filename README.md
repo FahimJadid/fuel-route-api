@@ -27,6 +27,75 @@ docker compose run --rm app sh -c "python manage.py migrate --noinput && python 
 docker compose run --rm app pytest
 ```
 
+## Step-by-step walkthrough for a first run
+
+Everything runs in containers; the only prerequisite is Docker (Desktop or Engine with the
+Compose plugin) and an internet connection for the routing engine and map tiles.
+
+1. **Clone and start the stack** (about a minute the first time, building the image):
+   ```sh
+   git clone <this repository> fuel-route-api && cd fuel-route-api
+   make up                     # Windows: copy .env.example to .env, then docker compose up -d --build
+   ```
+   `docker compose ps` should show `app` up and `db`/`redis` healthy.
+
+2. **Load the data** (about a minute; migrations run first, nothing is downloaded):
+   ```sh
+   make load
+   ```
+   The last lines must read `stations: 6626`, `geocoded: 6626`, `unresolved: 0`.
+
+3. **Check the service is healthy:**
+   ```sh
+   curl http://localhost:8000/api/v1/health/
+   # {"status":"ok","checks":{"database":"ok","cache":"ok"}}
+   ```
+
+4. **Plan a trip:**
+   ```sh
+   curl -s -X POST http://localhost:8000/api/v1/trips/ \
+     -H "Content-Type: application/json" \
+     -d '{"origin": "Dallas, TX", "destination": "Denver, CO"}'
+   ```
+   Expect `201` with 2 stops, `"gallons": "77.938"`, `"cost": "211.07"` (full body below).
+   The first call takes about a second — that is the single routing request. Repeat it: the
+   route now comes from Redis and the whole request takes tens of milliseconds.
+
+5. **See it on a map:** open the `links.map` URL from the response in a browser, e.g.
+   `http://localhost:8000/api/v1/trips/<id>/map/`.
+
+6. **Try the other input form and the vehicle parameters:**
+   ```sh
+   curl -s -X POST http://localhost:8000/api/v1/trips/ -H "Content-Type: application/json" \
+     -d '{"origin": {"lat": 40.7128, "lng": -74.006}, "destination": "Los Angeles, CA", "max_range_miles": 400, "mpg": 7}'
+   ```
+   Expect `201`, about 2,805 miles and 17 stops.
+
+7. **Provoke the error cases:**
+   ```sh
+   # misspelt place -> 400 place_not_found
+   curl -s -X POST http://localhost:8000/api/v1/trips/ -H "Content-Type: application/json" \
+     -d '{"origin": "Dalas, TX", "destination": "Denver, CO"}'
+   # missing field + range below the minimum -> 400 validation_error with both fields in details
+   curl -s -X POST http://localhost:8000/api/v1/trips/ -H "Content-Type: application/json" \
+     -d '{"origin": "Dallas, TX", "max_range_miles": 10}'
+   # 60-mile range -> 422 no_feasible_plan, details say where coverage breaks (mile 482.5)
+   curl -s -X POST http://localhost:8000/api/v1/trips/ -H "Content-Type: application/json" \
+     -d '{"origin": "Dallas, TX", "destination": "Denver, CO", "max_range_miles": 60}'
+   # unknown id -> 404 not_found, same JSON envelope
+   curl -s http://localhost:8000/api/v1/trips/00000000-0000-0000-0000-000000000000/
+   ```
+
+8. **Browse the API docs** at http://localhost:8000/api/docs/, or import the Postman
+   collection — its requests mirror steps 3–7 and carry assertions.
+
+9. **Run the tests** (real PostGIS, mocked routing HTTP; about ten seconds):
+   ```sh
+   make test
+   ```
+
+10. **Shut down:** `make down` keeps the database volume; `docker compose down -v` removes it.
+
 ## Example
 
 ```http
