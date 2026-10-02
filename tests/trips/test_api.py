@@ -59,7 +59,10 @@ def test_post_trip_returns_plan_and_get_returns_the_same_trip(api_client, alamos
     assert stop["station"]["opis_id"] == alamosa_station.opis_id
     assert stop["price_per_gallon"] == "3.250"
     assert stop["gallons"] == 44.0
-    assert body["links"] == {"self": f"/api/v1/trips/{body['id']}/"}
+    assert body["links"] == {
+        "self": f"/api/v1/trips/{body['id']}/",
+        "map": f"/api/v1/trips/{body['id']}/map/",
+    }
 
     fetched = api_client.get(body["links"]["self"])
 
@@ -122,6 +125,27 @@ def test_route_without_stations_in_range_is_a_422_with_the_route(api_client):
     assert error["code"] == "no_feasible_plan"
     assert error["details"]["from_mile"] == 0.0
     assert error["details"]["route"]["coordinates"][0] == [-110.0, 37.472041]
+
+
+def test_map_page_renders_the_plan(api_client, alamosa_station):
+    created = api_client.post(
+        "/api/v1/trips/", {"origin": ORIGIN, "destination": DESTINATION}, format="json"
+    ).json()
+
+    response = api_client.get(created["links"]["map"])
+
+    assert response.status_code == 200
+    assert response["Content-Type"].startswith("text/html")
+    html = response.content.decode()
+    assert "ALAMOSA TRUCK STOP" in html
+    assert 'id="map-data"' in html
+    assert "143.00" in html
+
+
+def test_map_page_for_unknown_trip_is_a_404(api_client):
+    response = api_client.get(f"/api/v1/trips/{uuid.uuid4()}/map/")
+
+    assert response.status_code == 404
 
 
 def test_unknown_trip_is_a_404(api_client):

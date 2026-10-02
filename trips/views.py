@@ -1,4 +1,6 @@
-from django.shortcuts import get_object_or_404
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import get_object_or_404, render
+from django.views import View
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.request import Request
@@ -37,3 +39,11 @@ class TripDetailView(APIView):
     def get(self, request: Request, pk) -> Response:
         trip = get_object_or_404(Trip, pk=pk)
         return Response(TripSerializer(trip).data)
+
+
+class TripMapView(View):
+    def get(self, request: HttpRequest, pk) -> HttpResponse:
+        trip = get_object_or_404(Trip, pk=pk)
+        data = TripSerializer(trip).data
+        map_data = {key: data[key] for key in ("origin", "destination", "route", "stops")}
+        return render(request, "trips/map.html", {"trip": trip, "map_data": map_data})

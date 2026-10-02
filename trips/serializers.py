@@ -97,6 +97,7 @@ class TotalsSerializer(serializers.Serializer):
 
 class LinksSerializer(serializers.Serializer):
     self = serializers.CharField()
+    map = serializers.CharField()
 
 
 class TripSerializer(serializers.ModelSerializer):
@@ -166,4 +167,7 @@ class TripSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(LinksSerializer)
     def get_links(self, trip: Trip) -> dict:
-        return {"self": reverse("trip-detail", kwargs={"pk": trip.pk})}
+        return {
+            "self": reverse("trip-detail", kwargs={"pk": trip.pk}),
+            "map": reverse("trip-map", kwargs={"pk": trip.pk}),
+        }
