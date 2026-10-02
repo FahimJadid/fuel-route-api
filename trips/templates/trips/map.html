@@ -8,8 +8,9 @@
   <style>
     :root { --ink: #111827; --muted: #6b7280; --line: #e5e7eb; --route: #2563eb; --stop: #dc2626; --start: #16a34a; }
     html, body { height: 100%; margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: #f9fafb; }
-    #layout { display: grid; grid-template-columns: 380px 1fr; height: 100%; }
-    #panel { padding: 20px; overflow-y: auto; background: #fff; border-right: 1px solid var(--line); }
+    #layout { display: grid; grid-template-columns: 380px 1fr; grid-template-rows: minmax(0, 1fr); height: 100vh; }
+    #panel { padding: 20px; overflow-y: auto; min-height: 0; background: #fff; border-right: 1px solid var(--line); }
+    #map-wrap { position: relative; min-height: 0; }
     #map { height: 100%; }
     h1 { font-size: 18px; margin: 0 0 4px; }
     .muted { color: var(--muted); }
@@ -46,7 +47,7 @@
     .pin.stop .n { position: absolute; top: -8px; right: -8px; background: #fff; color: var(--stop); border: 2px solid var(--stop); border-radius: 50%; width: 18px; height: 18px; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
     .leaflet-popup-content { margin: 10px 14px; font: 13px/1.4 system-ui, sans-serif; }
     .leaflet-popup-content b { font-size: 14px; }
-    @media (max-width: 760px) { #layout { grid-template-columns: 1fr; grid-template-rows: 45% 55%; } #panel { border-right: 0; border-bottom: 1px solid var(--line); } }
+    @media (max-width: 760px) { #layout { grid-template-columns: 1fr; grid-template-rows: minmax(0, 45%) minmax(0, 55%); } #panel { border-right: 0; border-bottom: 1px solid var(--line); } }
   </style>
 </head>
 <body>
@@ -64,7 +65,7 @@
     {% endif %}
     <ol class="timeline" id="timeline"></ol>
   </aside>
-  <div style="position: relative;">
+  <div id="map-wrap">
     <div id="map"></div>
     <div class="legend">
       <span><i style="background: var(--start)"></i>Start</span>
