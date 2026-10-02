@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "geo",
     "stations",
     "routing",
+    "trips",
 ]
 
 MIDDLEWARE = [
@@ -101,6 +102,8 @@ ROUTING = {
 
 FUEL_PLANNING = {
     "CORRIDOR_MILES": env.float("FUEL_CORRIDOR_MILES", default=10.0),
+    "MAX_RANGE_MILES": env.float("VEHICLE_MAX_RANGE_MILES", default=500.0),
+    "MPG": env.float("VEHICLE_MPG", default=10.0),
 }
 
 SPECTACULAR_SETTINGS = {
