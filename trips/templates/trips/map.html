@@ -6,19 +6,45 @@
   <title>{{ trip.origin_label }} → {{ trip.destination_label }} · Fuel Route</title>
   <link rel="stylesheet" href="{% static 'trips/leaflet/leaflet.css' %}">
   <style>
-    html, body { height: 100%; margin: 0; font: 14px/1.4 system-ui, sans-serif; color: #1f2933; }
-    #layout { display: grid; grid-template-columns: 340px 1fr; height: 100%; }
-    #panel { padding: 16px 20px; overflow-y: auto; border-right: 1px solid #d9dee3; background: #fff; }
+    :root { --ink: #111827; --muted: #6b7280; --line: #e5e7eb; --route: #2563eb; --stop: #dc2626; --start: #16a34a; }
+    html, body { height: 100%; margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: #f9fafb; }
+    #layout { display: grid; grid-template-columns: 380px 1fr; height: 100%; }
+    #panel { padding: 20px; overflow-y: auto; background: #fff; border-right: 1px solid var(--line); }
     #map { height: 100%; }
-    h1 { font-size: 17px; margin: 0 0 4px; }
-    .muted { color: #6b7280; }
-    .totals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 14px 0; }
-    .totals div { background: #f3f4f6; border-radius: 6px; padding: 8px; }
-    .totals strong { display: block; font-size: 18px; }
-    ol { padding-left: 20px; margin: 0; }
-    li { margin-bottom: 10px; }
-    li small { display: block; color: #6b7280; }
-    @media (max-width: 720px) { #layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .muted { color: var(--muted); }
+    .totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0; }
+    .totals div { background: #f3f4f6; border-radius: 8px; padding: 10px 12px; }
+    .totals strong { display: block; font-size: 20px; margin-top: 2px; }
+    .timeline { list-style: none; margin: 0; padding: 0; }
+    .timeline li { position: relative; padding: 0 0 16px 40px; }
+    .timeline li::before { content: ""; position: absolute; left: 13px; top: 28px; bottom: 0; border-left: 2px dashed #cbd5e1; }
+    .timeline li:last-child::before { display: none; }
+    .dot { position: absolute; left: 0; top: 2px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 600; font-size: 12px; }
+    .dot.start { background: var(--start); }
+    .dot.stop { background: var(--stop); }
+    .dot.finish { background: var(--ink); }
+    .dot svg { width: 16px; height: 16px; fill: #fff; }
+    .card { cursor: pointer; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; transition: border-color .15s, box-shadow .15s; }
+    .card:hover { border-color: var(--route); box-shadow: 0 1px 6px rgba(37, 99, 235, .15); }
+    .card .name { font-weight: 600; }
+    .card .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .card .fuel { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 13px; }
+    .card .fuel span { white-space: nowrap; }
+    .card .fuel span b { display: block; color: var(--ink); }
+    .leg { color: var(--muted); font-size: 12px; margin: -8px 0 10px 40px; }
+    .legend { position: absolute; z-index: 1000; right: 12px; bottom: 28px; background: #fff; border-radius: 8px; padding: 8px 12px; box-shadow: 0 1px 6px rgba(0,0,0,.2); font-size: 12px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
+    .legend i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .pin { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); color: #fff; }
+    .pin svg { width: 18px; height: 18px; fill: #fff; }
+    .pin.start { background: var(--start); }
+    .pin.finish { background: var(--ink); }
+    .pin.stop { background: var(--stop); position: relative; }
+    .pin.stop .n { position: absolute; top: -8px; right: -8px; background: #fff; color: var(--stop); border: 2px solid var(--stop); border-radius: 50%; width: 18px; height: 18px; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+    .leaflet-popup-content { margin: 10px 14px; font: 13px/1.4 system-ui, sans-serif; }
+    .leaflet-popup-content b { font-size: 14px; }
+    @media (max-width: 760px) { #layout { grid-template-columns: 1fr; grid-template-rows: 45% 55%; } #panel { border-right: 0; border-bottom: 1px solid var(--line); } }
   </style>
 </head>
 <body>
@@ -27,46 +53,90 @@
     <h1>{{ trip.origin_label }} → {{ trip.destination_label }}</h1>
     <div class="muted">{{ trip.distance_miles }} mi · {{ trip.duration_minutes }} min · {{ trip.max_range_miles }} mi range · {{ trip.mpg }} mpg</div>
     <div class="totals">
-      <div><span class="muted">Stops</span><strong>{{ trip.stops|length }}</strong></div>
+      <div><span class="muted">Fuel stops</span><strong>{{ trip.stops|length }}</strong></div>
       <div><span class="muted">Gallons</span><strong>{{ trip.total_gallons }}</strong></div>
       <div><span class="muted">Fuel cost</span><strong>${{ trip.total_cost }}</strong></div>
     </div>
-    <ol>
-      {% for stop in trip.stops %}
-      <li>
-        <strong>{{ stop.station.name }}</strong> — {{ stop.station.city }}, {{ stop.station.state }}
-        <small>mile {{ stop.route_mile }} · ${{ stop.price_per_gallon }}/gal · buy {{ stop.gallons }} gal · ${{ stop.cost }}</small>
-      </li>
-      {% endfor %}
-    </ol>
+    <ol class="timeline" id="timeline"></ol>
   </aside>
-  <div id="map"></div>
+  <div style="position: relative;">
+    <div id="map"></div>
+    <div class="legend">
+      <span><i style="background: var(--start)"></i>Start</span>
+      <span><i style="background: var(--stop)"></i>Fuel stop</span>
+      <span><i style="background: var(--ink)"></i>Finish</span>
+    </div>
+  </div>
 </div>
 
 {{ map_data|json_script:"map-data" }}
 <script src="{% static 'trips/leaflet/leaflet.js' %}"></script>
 <script>
+  const ICONS = {
+    truck: '<svg viewBox="0 0 24 24"><path d="M3 5h11v9h1V8h4l3 4v4h-2a2.5 2.5 0 1 1-5 0H9a2.5 2.5 0 1 1-5 0H3V5zm13 5v2h3.6L18 10h-2zM6.5 15a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm11 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>',
+    flag: '<svg viewBox="0 0 24 24"><path d="M5 3h2v18H5V3zm3 1h11l-2.5 4L19 12H8V4z"/></svg>',
+    pump: '<svg viewBox="0 0 24 24"><path d="M4 3h9a1 1 0 0 1 1 1v6h1.5a2.5 2.5 0 0 1 2.5 2.5V17a1 1 0 0 0 2 0v-5.6l-2-2V7l-2-2 1.4-1.4L21 7.2V17a3 3 0 0 1-6 0v-4.5a.5.5 0 0 0-.5-.5H14v9H4V3zm2 2v5h5V5H6z"/></svg>',
+  };
   const data = JSON.parse(document.getElementById("map-data").textContent);
-  const map = L.map("map");
-  const routeBounds = L.latLngBounds(data.route.coordinates.map(([lng, lat]) => [lat, lng]));
-  map.fitBounds(routeBounds, { padding: [24, 24] });
+  const distanceMiles = parseFloat("{{ trip.distance_miles }}");
+
+  const map = L.map("map", { zoomControl: true });
+  map.fitBounds(L.latLngBounds(data.route.coordinates.map(([lng, lat]) => [lat, lng])), { padding: [40, 40] });
   L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
     { maxZoom: 18, attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors" },
   ).addTo(map);
+  L.geoJSON(data.route, { style: { color: "#ffffff", weight: 9, opacity: 0.9 } }).addTo(map);
+  L.geoJSON(data.route, { style: { color: "#2563eb", weight: 5 } }).addTo(map);
 
-  L.geoJSON(data.route, { style: { color: "#2563eb", weight: 4 } }).addTo(map);
-  L.marker([data.origin.lat, data.origin.lng]).addTo(map).bindPopup(`<b>Start</b><br>${data.origin.label}`);
-  L.marker([data.destination.lat, data.destination.lng]).addTo(map).bindPopup(`<b>Finish</b><br>${data.destination.label}`);
-  data.stops.forEach((stop) => {
-    L.circleMarker([stop.station.lat, stop.station.lng], {
-      radius: 8, color: "#b91c1c", fillColor: "#ef4444", fillOpacity: 0.9,
-    }).addTo(map).bindPopup(
-      `<b>#${stop.sequence} ${stop.station.name}</b><br>${stop.station.city}, ${stop.station.state}` +
-      `<br>mile ${stop.route_mile} · $${stop.price_per_gallon}/gal` +
-      `<br>buy ${stop.gallons} gal · $${stop.cost}`
-    );
+  const pin = (kind, inner) => L.divIcon({
+    className: "", html: `<div class="pin ${kind}">${inner}</div>`, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -18],
   });
+  const money = (value) => `$${value}`;
+
+  L.marker([data.origin.lat, data.origin.lng], { icon: pin("start", ICONS.truck) }).addTo(map)
+    .bindPopup(`<b>Start</b><br>${data.origin.label}<br><span style="color:#6b7280">tank empty, first stop within range</span>`);
+  L.marker([data.destination.lat, data.destination.lng], { icon: pin("finish", ICONS.flag) }).addTo(map)
+    .bindPopup(`<b>Finish</b><br>${data.destination.label}<br><span style="color:#6b7280">mile ${distanceMiles}</span>`);
+
+  const stopMarkers = data.stops.map((stop) => L.marker(
+    [stop.station.lat, stop.station.lng], { icon: pin("stop", `${ICONS.pump}<span class="n">${stop.sequence}</span>`) },
+  ).addTo(map).bindPopup(
+    `<b>#${stop.sequence} ${stop.station.name}</b><br>${stop.station.address} · ${stop.station.city}, ${stop.station.state}` +
+    `<br>mile ${stop.route_mile} · ${money(stop.price_per_gallon)}/gal` +
+    `<br>arrive ${stop.fuel_on_arrival_gallons} gal → buy <b>${stop.gallons} gal</b> → leave ${stop.fuel_on_departure_gallons} gal` +
+    `<br>cost <b>${money(stop.cost)}</b>`
+  ));
+
+  const timeline = document.getElementById("timeline");
+  const item = (dotClass, dotInner, body, onClick) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="dot ${dotClass}">${dotInner}</span>${body}`;
+    if (onClick) li.querySelector(".card").addEventListener("click", onClick);
+    timeline.appendChild(li);
+  };
+  const leg = (miles) => `<div class="leg">${miles.toFixed(1)} mi</div>`;
+
+  item("start", ICONS.truck, `<div class="card"><div class="name">${data.origin.label}</div><div class="meta">Start · tank empty</div></div>`,
+    () => map.flyTo([data.origin.lat, data.origin.lng], 9));
+  let previousMile = 0;
+  data.stops.forEach((stop, index) => {
+    timeline.insertAdjacentHTML("beforeend", leg(stop.route_mile - previousMile));
+    item("stop", stop.sequence, `<div class="card">
+        <div class="name">${stop.station.name}</div>
+        <div class="meta">${stop.station.address} · ${stop.station.city}, ${stop.station.state} · mile ${stop.route_mile}</div>
+        <div class="fuel">
+          <span class="muted">Price<b>${money(stop.price_per_gallon)}/gal</b></span>
+          <span class="muted">Buy<b>${stop.gallons} gal</b></span>
+          <span class="muted">Cost<b>${money(stop.cost)}</b></span>
+          <span class="muted">Leave with<b>${stop.fuel_on_departure_gallons} gal</b></span>
+        </div></div>`,
+      () => { map.flyTo([stop.station.lat, stop.station.lng], 9); stopMarkers[index].openPopup(); });
+    previousMile = stop.route_mile;
+  });
+  timeline.insertAdjacentHTML("beforeend", leg(distanceMiles - previousMile));
+  item("finish", ICONS.flag, `<div class="card"><div class="name">${data.destination.label}</div><div class="meta">Finish · mile ${distanceMiles}</div></div>`,
+    () => map.flyTo([data.destination.lat, data.destination.lng], 9));
 </script>
 </body>
 </html>
