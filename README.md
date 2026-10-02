@@ -12,7 +12,7 @@ much to buy at each one and the total fuel cost.
 
 ```sh
 make up      # build the image, start PostGIS + Redis + the app, run migrations
-make load    # load 206k US place centroids and 6,626 truck stops (offline, ~1 minute)
+make load    # load state boundaries, 206k US place centroids and 6,626 truck stops (offline, ~1 minute)
 make test    # run the test suite
 ```
 
@@ -23,7 +23,7 @@ Without `make` (Windows PowerShell or Git Bash), copy `.env.example` to `.env` o
 
 ```sh
 docker compose up -d --build
-docker compose run --rm app sh -c "python manage.py migrate --noinput && python manage.py import_places && python manage.py import_stations"
+docker compose run --rm app sh -c "python manage.py migrate --noinput && python manage.py import_states && python manage.py import_places && python manage.py import_stations"
 docker compose run --rm app pytest
 ```
 
@@ -166,7 +166,7 @@ Every error has the same shape:
 | Status | `code` | When |
 |---|---|---|
 | 400 | `validation_error` | a field is missing or out of range; `details` maps field → messages |
-| 400 | `place_not_found`, `outside_usa` | the origin or destination could not be resolved |
+| 400 | `place_not_found`, `outside_usa` | the place name is unknown, or the coordinates fall outside the 48 contiguous states (checked against Census state boundaries) |
 | 422 | `no_feasible_plan` | no station within range somewhere along the route; `details` has `from_mile` and the route |
 | 422 | `no_route` | the routing engine found no drivable route |
 | 503 | `routing_unavailable` | the routing engine timed out or failed |

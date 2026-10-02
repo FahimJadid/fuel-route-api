@@ -30,3 +30,12 @@ class Place(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name}, {self.state} ({self.source})"
+
+
+class State(models.Model):
+    usps = models.CharField(max_length=2, primary_key=True)
+    name = models.CharField(max_length=60)
+    boundary = models.MultiPolygonField(srid=4326)
+
+    def __str__(self) -> str:
+        return self.name

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from django.contrib.gis.geos import Point
+from django.core.management import call_command
 
 from geo.services.importer import import_places
 from geo.sources import read_gazetteer
@@ -29,6 +30,11 @@ DESTINATION = {"lat": 37.472041, "lng": -102.0}
 @pytest.fixture(autouse=True)
 def stub_route(monkeypatch):
     monkeypatch.setattr(services, "get_route", lambda origin, destination: ROUTE)
+
+
+@pytest.fixture(autouse=True)
+def states():
+    call_command("import_states", file=GEO_FIXTURES / "states_sample.geojson")
 
 
 @pytest.fixture

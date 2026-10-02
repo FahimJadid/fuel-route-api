@@ -1,14 +1,13 @@
 import re
 from dataclasses import dataclass
 
+from django.contrib.gis.geos import Point
+
 from geo.exceptions import OutsideUsaError, PlaceNotFoundError
-from geo.models import Place, PlaceSource
+from geo.models import Place, PlaceSource, State
 from geo.normalize import name_key, normalize_name
 
 CITY_STATE_PATTERN = re.compile(r"^\s*(?P<city>.+?)\s*,\s*(?P<state>[A-Za-z]{2})\s*$")
-
-CONTIGUOUS_US_LAT = (24.5, 49.5)
-CONTIGUOUS_US_LNG = (-125.0, -66.9)
 
 SOURCE_RANK = {PlaceSource.GAZETTEER: 0, PlaceSource.GNIS: 1, PlaceSource.ALIAS: 2}
 
@@ -50,9 +49,8 @@ def resolve_city(city: str, state: str) -> Place:
 
 
 def resolve_coordinates(lat: float, lng: float) -> ResolvedLocation:
-    if not (CONTIGUOUS_US_LAT[0] <= lat <= CONTIGUOUS_US_LAT[1]) or not (
-        CONTIGUOUS_US_LNG[0] <= lng <= CONTIGUOUS_US_LNG[1]
-    ):
+    point = Point(lng, lat, srid=4326)
+    if not State.objects.filter(boundary__contains=point).exists():
         raise OutsideUsaError(
             "Coordinates must lie within the contiguous United States.",
             details={"lat": lat, "lng": lng},

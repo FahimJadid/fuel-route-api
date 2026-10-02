@@ -22,3 +22,6 @@ data/raw/
 # Editors
 .idea/
 .vscode/
+
+# Windows reserved device name that stray shell redirects can create
+nul

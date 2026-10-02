@@ -9,6 +9,7 @@ geocoding API or key. Both place sources are works of the US federal government
 | `fuel-prices-for-be-assessment.csv` | OPIS truck-stop retail diesel prices supplied with the assessment (8,151 rows, no coordinates) | assessment attachment |
 | `2026_Gaz_place_national.txt` | US Census Bureau Gazetteer, Places, 2026 vintage — every incorporated place and census-designated place with its internal-point coordinates (32,363 rows, unmodified) | [census.gov Gazetteer files](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html) |
 | `gnis_populated_places.csv.gz` | USGS Geographic Names Information System, "Populated Place" features, trimmed to the columns the importer needs (174,097 rows; historical features dropped) | [USGS GNIS downloads](https://www.usgs.gov/us-board-on-geographic-names/download-gnis-data) |
+| `conus_states.geojson` | US Census cartographic boundaries of the 48 contiguous states and DC (2024, 1:20,000,000), used to check that coordinates lie inside the USA (49 features, 4-decimal coordinates) | [census.gov cartographic boundary files](https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html) |
 | `city_aliases.csv` | Hand-maintained spellings that neither place file resolves (20 of the 3,808 distinct city/state pairs in the price file), each with the coordinate it maps to and a note saying where that coordinate came from | this repository |
 
 ## Provenance
@@ -19,6 +20,7 @@ Downloaded 2026-10-02.
 |---|---|---|
 | `2026_Gaz_place_national.zip` (1,214,650 bytes) | `https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2026_Gazetteer/2026_Gaz_place_national.zip` | `af678e2d990827c89ee39b98c82de6e90b693c7361ff0e559ae3076670dd2863` |
 | `PopulatedPlaces_National_Text.zip` (6,192,581 bytes) | `https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/Topical/PopulatedPlaces_National_Text.zip` | `919fac887628b8547ec1b24fae319522a9481a56909c3914d1e0a2b56783147c` |
+| `cb_2024_us_state_20m.zip` | `https://www2.census.gov/geo/tiger/GENZ2024/shp/cb_2024_us_state_20m.zip` | `7bc773d83c01b6df69b8aada9c2b5983d97f22f4551947cc5c00b87c663223ef` |
 
 The Gazetteer text file is the archive's content as published. The GNIS extract is produced from
 the archive's `Text/PopulatedPlaces_National.txt` by:
@@ -29,6 +31,14 @@ python scripts/build_gnis_extract.py data/raw/PopulatedPlaces_National.txt data/
 
 USGS refreshes the GNIS archive at the same URL every other month, so re-running the script
 against a newer download will produce a newer extract.
+
+`conus_states.geojson` is produced from the state shapefile with GDAL, keeping two attributes and
+dropping Alaska, Hawaii and Puerto Rico:
+
+```sh
+ogr2ogr -f GeoJSON -lco COORDINATE_PRECISION=4 -select STUSPS,NAME \
+  -where "STUSPS NOT IN ('AK','HI','PR')" data/conus_states.geojson data/raw/cb_2024_us_state_20m/cb_2024_us_state_20m.shp
+```
 
 ## Why two sources
 

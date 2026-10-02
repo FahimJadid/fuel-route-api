@@ -22,7 +22,7 @@ migrate: .env
 	$(RUN) python manage.py migrate --noinput
 
 load: .env
-	$(RUN) sh -c "python manage.py migrate --noinput && python manage.py import_places && python manage.py import_stations"
+	$(RUN) sh -c "python manage.py migrate --noinput && python manage.py import_states && python manage.py import_places && python manage.py import_stations"
 
 shell: .env
 	$(RUN) python manage.py shell

@@ -1,9 +1,10 @@
 from pathlib import Path
 
 import pytest
+from django.core.management import call_command
 
 from geo.exceptions import OutsideUsaError, PlaceNotFoundError
-from geo.models import PlaceSource
+from geo.models import PlaceSource, State
 from geo.services.importer import import_places
 from geo.services.resolver import resolve_city, resolve_coordinates, resolve_text
 from geo.sources import read_gazetteer, read_gnis
@@ -17,6 +18,7 @@ pytestmark = pytest.mark.django_db
 def places():
     import_places(read_gazetteer(FIXTURES / "gazetteer_sample.txt"))
     import_places(read_gnis(FIXTURES / "gnis_sample.csv"))
+    call_command("import_states", file=FIXTURES / "states_sample.geojson")
 
 
 def test_resolve_text_prefers_gazetteer_over_gnis_for_the_same_name():
@@ -53,14 +55,23 @@ def test_resolve_text_requires_city_comma_state():
     assert "City, ST" in excinfo.value.message
 
 
-def test_resolve_coordinates_inside_contiguous_usa():
+def test_import_states_loads_polygons_and_multipolygons():
+    assert State.objects.count() == 2
+    assert State.objects.get(usps="TX").boundary.geom_type == "MultiPolygon"
+
+
+def test_resolve_coordinates_inside_a_state():
     location = resolve_coordinates(32.7767, -96.797)
 
     assert location.label == "32.7767, -96.7970"
     assert location.place is None
 
 
-@pytest.mark.parametrize(("lat", "lng"), [(21.3, -157.8), (61.2, -149.9), (48.8, 2.3)])
-def test_resolve_coordinates_outside_contiguous_usa(lat, lng):
+@pytest.mark.parametrize(
+    ("lat", "lng"),
+    [(25.67, -100.31), (49.89, -97.14), (21.3, -157.8), (37.5, -111.0)],
+    ids=["monterrey-mx", "winnipeg-ca", "honolulu", "utah-not-loaded"],
+)
+def test_resolve_coordinates_outside_loaded_states(lat, lng):
     with pytest.raises(OutsideUsaError):
         resolve_coordinates(lat, lng)
