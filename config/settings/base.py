@@ -13,9 +13,9 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
-    "django.contrib.staticfiles",
     "django.contrib.postgres",
     "django.contrib.gis",
+    "django.contrib.staticfiles",
     "rest_framework",
     "drf_spectacular",
     "core",

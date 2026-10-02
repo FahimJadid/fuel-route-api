@@ -1,11 +1,10 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ trip.origin_label }} → {{ trip.destination_label }} · Fuel Route</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="{% static 'trips/leaflet/leaflet.css' %}">
   <style>
     html, body { height: 100%; margin: 0; font: 14px/1.4 system-ui, sans-serif; color: #1f2933; }
     #layout { display: grid; grid-template-columns: 340px 1fr; height: 100%; }
@@ -45,17 +44,18 @@
 </div>
 
 {{ map_data|json_script:"map-data" }}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="{% static 'trips/leaflet/leaflet.js' %}"></script>
 <script>
   const data = JSON.parse(document.getElementById("map-data").textContent);
   const map = L.map("map");
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(map);
+  const routeBounds = L.latLngBounds(data.route.coordinates.map(([lng, lat]) => [lat, lng]));
+  map.fitBounds(routeBounds, { padding: [24, 24] });
+  L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 18, attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors" },
+  ).addTo(map);
 
-  const route = L.geoJSON(data.route, { style: { color: "#2563eb", weight: 4 } }).addTo(map);
+  L.geoJSON(data.route, { style: { color: "#2563eb", weight: 4 } }).addTo(map);
   L.marker([data.origin.lat, data.origin.lng]).addTo(map).bindPopup(`<b>Start</b><br>${data.origin.label}`);
   L.marker([data.destination.lat, data.destination.lng]).addTo(map).bindPopup(`<b>Finish</b><br>${data.destination.label}`);
   data.stops.forEach((stop) => {
@@ -67,7 +67,6 @@
       `<br>buy ${stop.gallons} gal · $${stop.cost}`
     );
   });
-  map.fitBounds(route.getBounds(), { padding: [24, 24] });
 </script>
 </body>
 </html>
