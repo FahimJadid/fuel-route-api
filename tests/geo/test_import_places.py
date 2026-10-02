@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
 
 from geo.models import Place, PlaceSource
 from geo.services.importer import import_places
@@ -66,3 +66,14 @@ def test_import_places_command_loads_every_source(capsys):
     assert "gnis: 2 places" in output
     assert "aliases: 1 places" in output
     assert Place.objects.filter(state="OK", name_normalized="BIG CABIN").count() == 2
+
+
+@pytest.mark.django_db
+def test_import_places_command_fails_loudly_when_a_federal_file_is_missing():
+    with pytest.raises(CommandError, match="gnis file not found"):
+        call_command(
+            "import_places",
+            gazetteer=FIXTURES / "gazetteer_sample.txt",
+            gnis=FIXTURES / "missing.csv",
+            aliases=FIXTURES / "aliases_sample.csv",
+        )

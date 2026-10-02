@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from django.conf import settings
-from django.core.management.base import BaseCommand, CommandParser
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from geo.services.importer import import_places
 from geo.sources import read_aliases, read_gazetteer, read_gnis
@@ -20,14 +20,16 @@ class Command(BaseCommand):
         parser.add_argument("--aliases", type=Path, default=DATA_DIR / "city_aliases.csv")
 
     def handle(self, *args, **options) -> None:
-        sources = [
+        for label, path, reader in (
             ("gazetteer", options["gazetteer"], read_gazetteer),
             ("gnis", options["gnis"], read_gnis),
-            ("aliases", options["aliases"], read_aliases),
-        ]
-        for label, path, reader in sources:
+        ):
             if not path.exists():
-                self.stdout.write(f"{label}: skipped, {path} not found")
-                continue
-            count = import_places(reader(path))
-            self.stdout.write(f"{label}: {count} places")
+                raise CommandError(f"{label} file not found: {path}")
+            self.stdout.write(f"{label}: {import_places(reader(path))} places")
+
+        aliases = options["aliases"]
+        if aliases.exists():
+            self.stdout.write(f"aliases: {import_places(read_aliases(aliases))} places")
+        else:
+            self.stdout.write(f"aliases: none ({aliases} not found)")

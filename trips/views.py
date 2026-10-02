@@ -1,4 +1,4 @@
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views import View
 from drf_spectacular.utils import extend_schema
@@ -7,6 +7,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.exceptions import error_payload
 from core.serializers import ErrorSerializer
 from trips.models import Trip
 from trips.serializers import TripRequestSerializer, TripSerializer
@@ -43,7 +44,9 @@ class TripDetailView(APIView):
 
 class TripMapView(View):
     def get(self, request: HttpRequest, pk) -> HttpResponse:
-        trip = get_object_or_404(Trip, pk=pk)
+        trip = Trip.objects.filter(pk=pk).first()
+        if trip is None:
+            return JsonResponse(error_payload("not_found", "Trip not found."), status=404)
         data = TripSerializer(trip).data
         map_data = {key: data[key] for key in ("origin", "destination", "route", "stops")}
         return render(request, "trips/map.html", {"trip": trip, "map_data": map_data})

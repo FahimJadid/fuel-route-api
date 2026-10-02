@@ -18,22 +18,22 @@ build:
 logs:
 	$(COMPOSE) logs -f app
 
-migrate:
-	$(RUN) python manage.py migrate
+migrate: .env
+	$(RUN) python manage.py migrate --noinput
 
-load:
-	$(RUN) sh -c "python manage.py import_places && python manage.py import_stations"
+load: .env
+	$(RUN) sh -c "python manage.py migrate --noinput && python manage.py import_places && python manage.py import_stations"
 
-shell:
+shell: .env
 	$(RUN) python manage.py shell
 
-test:
+test: .env
 	$(RUN) pytest
 
-lint:
+lint: .env
 	$(RUN) sh -c "ruff check . && ruff format --check ."
 
-format:
+format: .env
 	$(RUN) sh -c "ruff format . && ruff check --fix ."
 
 lock:

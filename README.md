@@ -19,12 +19,11 @@ make test    # run the test suite
 Then open http://localhost:8000/api/docs/ (Swagger UI) or import
 [`postman/fuel-route-api.postman_collection.json`](postman/fuel-route-api.postman_collection.json).
 
-Without `make` (Windows), the equivalents are:
+Without `make` (Windows PowerShell or Git Bash), copy `.env.example` to `.env` once, then:
 
 ```sh
-cp .env.example .env
 docker compose up -d --build
-docker compose run --rm app sh -c "python manage.py import_places && python manage.py import_stations"
+docker compose run --rm app sh -c "python manage.py migrate --noinput && python manage.py import_places && python manage.py import_stations"
 docker compose run --rm app pytest
 ```
 
@@ -221,17 +220,20 @@ HTTP call (`respx`). Dependencies are locked with `uv` (`uv.lock`); `pre-commit`
 
 ## Configuration
 
-All settings come from the environment (`.env.example`):
+All settings come from the environment; `.env.example` lists every variable with the values
+used by the compose stack.
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `DATABASE_URL` | `postgis://fuel:fuel@db:5432/fuel` | PostGIS connection |
-| `REDIS_URL` | `redis://redis:6379/1` | cache |
-| `OSRM_BASE_URL` | `https://router.project-osrm.org` | routing engine |
-| `ROUTING_TIMEOUT_SECONDS` | `10` | per-request timeout |
-| `ROUTE_CACHE_SECONDS` | `86400` | route cache TTL |
-| `FUEL_CORRIDOR_MILES` | `10` | corridor half-width |
-| `VEHICLE_MAX_RANGE_MILES`, `VEHICLE_MPG` | `500`, `10` | defaults, overridable per request |
+| Variable | Required | Compose value / default | Meaning |
+|---|---|---|---|
+| `SECRET_KEY` | yes | placeholder in `.env.example` | Django secret; change outside local development |
+| `DATABASE_URL` | yes | `postgis://fuel:fuel@db:5432/fuel` | PostGIS connection |
+| `REDIS_URL` | yes | `redis://redis:6379/1` | cache |
+| `ALLOWED_HOSTS` | prod only | `localhost,127.0.0.1` | comma-separated hosts |
+| `OSRM_BASE_URL` | no | `https://router.project-osrm.org` | routing engine |
+| `ROUTING_TIMEOUT_SECONDS` | no | `10` | per-request timeout |
+| `ROUTE_CACHE_SECONDS` | no | `86400` | route cache TTL |
+| `FUEL_CORRIDOR_MILES` | no | `10` | corridor half-width |
+| `VEHICLE_MAX_RANGE_MILES`, `VEHICLE_MPG` | no | `500`, `10` | vehicle defaults, overridable per request |
 
 ## With more time
 

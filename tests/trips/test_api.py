@@ -142,10 +142,19 @@ def test_map_page_renders_the_plan(api_client, alamosa_station):
     assert "143.00" in html
 
 
-def test_map_page_for_unknown_trip_is_a_404(api_client):
+def test_map_page_for_unknown_trip_is_a_json_404(api_client):
     response = api_client.get(f"/api/v1/trips/{uuid.uuid4()}/map/")
 
     assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+
+
+def test_malformed_trip_id_and_unknown_api_paths_are_json_404s(api_client):
+    for path in ("/api/v1/trips/not-a-uuid/", "/api/v1/nothing-here/"):
+        response = api_client.get(path)
+
+        assert response.status_code == 404, path
+        assert response.json()["error"]["code"] == "not_found", path
 
 
 def test_unknown_trip_is_a_404(api_client):
