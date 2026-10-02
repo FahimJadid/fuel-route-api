@@ -1,7 +1,7 @@
 COMPOSE ?= docker compose
 RUN := $(COMPOSE) run --rm app
 
-.PHONY: up down build logs migrate shell test lint format lock
+.PHONY: up down build logs migrate load shell test lint format lock
 
 .env:
 	cp .env.example .env
@@ -20,6 +20,9 @@ logs:
 
 migrate:
 	$(RUN) python manage.py migrate
+
+load:
+	$(RUN) sh -c "python manage.py import_places && python manage.py import_stations"
 
 shell:
 	$(RUN) python manage.py shell

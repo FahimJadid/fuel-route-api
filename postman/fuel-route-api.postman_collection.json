@@ -1,0 +1,100 @@
+{
+  "info": {
+    "name": "Fuel Route API",
+    "description": "Plan a US driving route with cost-optimal fuel stops.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "base_url", "value": "http://localhost:8000"},
+    {"key": "trip_id", "value": ""}
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {"method": "GET", "url": "{{base_url}}/api/v1/health/"}
+    },
+    {
+      "name": "Plan trip - city names",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('trip_id', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/trips/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"origin\": \"Dallas, TX\",\n  \"destination\": \"Denver, CO\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Plan trip - coordinates and vehicle overrides",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/trips/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"origin\": {\"lat\": 40.7128, \"lng\": -74.0060},\n  \"destination\": \"Los Angeles, CA\",\n  \"max_range_miles\": 400,\n  \"mpg\": 7\n}"
+        }
+      }
+    },
+    {
+      "name": "Get trip",
+      "request": {"method": "GET", "url": "{{base_url}}/api/v1/trips/{{trip_id}}/"}
+    },
+    {
+      "name": "Trip map (open in browser)",
+      "request": {"method": "GET", "url": "{{base_url}}/api/v1/trips/{{trip_id}}/map/"}
+    },
+    {
+      "name": "Error - unknown place (400)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/trips/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"origin\": \"Dalas, TX\",\n  \"destination\": \"Denver, CO\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Error - validation (400)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/trips/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"origin\": \"Dallas, TX\",\n  \"max_range_miles\": 10\n}"
+        }
+      }
+    },
+    {
+      "name": "Error - no station within range (422)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/trips/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"origin\": \"Dallas, TX\",\n  \"destination\": \"Denver, CO\",\n  \"max_range_miles\": 60\n}"
+        }
+      }
+    },
+    {
+      "name": "OpenAPI schema",
+      "request": {"method": "GET", "url": "{{base_url}}/api/schema/"}
+    }
+  ]
+}

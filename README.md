@@ -1,12 +1,242 @@
 # Fuel Route API
 
-Plans a driving route between two locations in the USA and picks the cheapest places to refuel along it,
-given the vehicle's range and fuel economy.
+Plans a driving route between two places in the USA and picks the cheapest places to refuel
+along it. Given the vehicle's range and fuel economy it returns the route, the fuel stops, how
+much to buy at each one and the total fuel cost.
+
+- Django 6.1 · Django REST Framework · PostgreSQL 17 + PostGIS · Redis · Docker Compose
+- One external call per request (routing); geocoding is fully offline
+- Cost-optimal stops from a provably optimal greedy, not "cheapest station per 500 miles"
 
 ## Quick start
 
 ```sh
-make up        # builds the image, starts PostGIS + Redis + the app, runs migrations
+make up      # build the image, start PostGIS + Redis + the app, run migrations
+make load    # load 206k US place centroids and 6,626 truck stops (offline, ~1 minute)
+make test    # run the test suite
 ```
 
-The API is served at http://localhost:8000/ and the interactive docs at http://localhost:8000/api/docs/.
+Then open http://localhost:8000/api/docs/ (Swagger UI) or import
+[`postman/fuel-route-api.postman_collection.json`](postman/fuel-route-api.postman_collection.json).
+
+Without `make` (Windows), the equivalents are:
+
+```sh
+cp .env.example .env
+docker compose up -d --build
+docker compose run --rm app sh -c "python manage.py import_places && python manage.py import_stations"
+docker compose run --rm app pytest
+```
+
+## Example
+
+```http
+POST /api/v1/trips/
+Content-Type: application/json
+
+{"origin": "Dallas, TX", "destination": "Denver, CO"}
+```
+
+```json
+{
+  "id": "5153c3a0-471e-4028-a560-1e14c6d231c9",
+  "origin": {"label": "Dallas, TX", "lat": 32.793333, "lng": -96.766513},
+  "destination": {"label": "Denver, CO", "lat": 39.76185, "lng": -104.881105},
+  "distance_miles": "779.4",
+  "duration_minutes": 868,
+  "vehicle": {"max_range_miles": "500.0", "mpg": "10.00", "tank_gallons": "50.00"},
+  "route": {"type": "LineString", "coordinates": [[-96.766417, 32.793249], "... 335 points ..."]},
+  "stops": [
+    {
+      "sequence": 1,
+      "station": {"id": 2731, "opis_id": 66341, "name": "7-ELEVEN #218", "address": "I-44, EXIT 4",
+                  "city": "Harrold", "state": "TX", "lat": 34.06757, "lng": -99.033091},
+      "route_mile": 175.5,
+      "price_per_gallon": "2.687",
+      "gallons": 67.555,
+      "cost": "181.52",
+      "fuel_on_arrival_gallons": 0.0,
+      "fuel_on_departure_gallons": 67.555
+    },
+    {
+      "sequence": 2,
+      "station": {"id": 6406, "opis_id": 72816, "name": "QUIKTRIP #7914", "address": "I-27 EXIT 117",
+                  "city": "Amarillo", "state": "TX", "lat": 35.199903, "lng": -101.830194},
+      "route_mile": 367.2,
+      "price_per_gallon": "2.846",
+      "gallons": 10.383,
+      "cost": "29.55",
+      "fuel_on_arrival_gallons": 30.83,
+      "fuel_on_departure_gallons": 41.213
+    }
+  ],
+  "totals": {"gallons": "77.938", "cost": "211.07", "stops": 2},
+  "links": {"self": "/api/v1/trips/5153c3a0-.../", "map": "/api/v1/trips/5153c3a0-.../map/"},
+  "created_at": "2026-10-02T05:15:22.118415Z"
+}
+```
+
+`links.map` opens an HTML page with the route and the stops drawn on a map.
+
+## API
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/trips/` | Plan a trip. Body: `origin`, `destination` (each either `"City, ST"` or `{"lat", "lng"}`), optional `max_range_miles` (50–2000, default 500) and `mpg` (1–50, default 10). Returns `201`. |
+| `GET` | `/api/v1/trips/{id}/` | Fetch a planned trip. |
+| `GET` | `/api/v1/trips/{id}/map/` | The same trip rendered on a Leaflet map (HTML). |
+| `GET` | `/api/v1/health/` | Database and cache health; `503` when either is down. |
+| `GET` | `/api/docs/`, `/api/schema/` | Swagger UI and the OpenAPI schema. |
+
+Every error has the same shape:
+
+```json
+{"error": {"code": "place_not_found", "message": "No place named 'Dalas' in TX.", "details": {"city": "Dalas", "state": "TX"}}}
+```
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `validation_error` | a field is missing or out of range; `details` maps field → messages |
+| 400 | `place_not_found`, `outside_usa` | the origin or destination could not be resolved |
+| 422 | `no_feasible_plan` | no station within range somewhere along the route; `details` has `from_mile` and the route |
+| 422 | `no_route` | the routing engine found no drivable route |
+| 503 | `routing_unavailable` | the routing engine timed out or failed |
+| 404 | `not_found` | unknown trip id |
+
+## How it works
+
+```
+"Dallas, TX" ──► resolve (local Place table, ~1 ms)
+                      │
+                      ▼
+            route (OSRM, cached in Redis 24 h) ──► simplify geometry (GEOS)
+                      │
+                      ▼
+            corridor query (one PostGIS query, ~50 ms):
+            stations within 10 mi of the route + each one's mile along the route
+                      │
+                      ▼
+            fuel planner (pure Python, < 20 ms) ──► Trip row ──► JSON / map
+```
+
+### The fuel planner
+
+The vehicle starts with an empty tank, so the first stop must be within `max_range_miles` of the
+origin and is billed for the fuel burned to reach it. From any stop the rule is the classic one
+for the gas-station problem on a fixed path (Khuller, Malekian & Mestre, 2007):
+
+- if a **cheaper** station is reachable on a full tank, buy **just enough** to get there;
+- otherwise **fill the tank** and drive to the **cheapest** reachable station (ties go to the farther one).
+
+That greedy is optimal for a fixed path. Every feasible first stop is evaluated and the cheapest
+plan is kept. Total gallons always equal `distance / mpg`, so the total cost is auditable. The
+implementation is `trips/planner.py`; `tests/trips/test_planner.py` checks the edge cases and runs
+200 seeded random instances against an independent exact shortest-path reference, asserting the
+greedy never costs more.
+
+### Data
+
+The supplied price file has 8,151 rows: 620 Canadian stations, 678 station IDs repeated with
+different prices, padded city names and one double-encoded name — and no coordinates. The import
+(`stations/services/importer.py`) cleans the rows, drops Canada, merges duplicates into one
+station with the **mean** price and a sample count, and geocodes each `City, State` against two
+public-domain federal files committed in [`data/`](data/README.md): the Census Gazetteer (places)
+and USGS GNIS (populated places). Twenty remaining spellings are resolved by an annotated alias
+file. All 6,626 US stations end up with a coordinate; nothing is geocoded online, so a clean clone
+needs no API key and the result is reproducible.
+
+### Corridor search
+
+Stations are matched to the route with one PostGIS query that transforms both into the CONUS
+Albers projection (EPSG:5070, metres), filters with `ST_DWithin` on a functional GiST index, and
+projects each station onto the line with `ST_LineLocatePoint` to get its mile along the route
+(`stations/selectors.py`). A 2,800-mile route against 6,626 stations takes about 50 ms.
+
+## Design decisions
+
+| Topic | Choice | Why | Would reconsider if |
+|---|---|---|---|
+| Routing API | Public OSRM behind a `RoutingProvider` adapter | no key for reviewers, returns GeoJSON, ~200 ms; swappable | production traffic → self-hosted OSRM or OpenRouteService |
+| Route geometry | fetch `overview=full`, simplify to 0.001° with GEOS | OSRM's own simplification gave 29 points for 795 miles — useless for a corridor; ours keeps ~1,700 points for a cross-country route | — |
+| Geocoding | offline Census Gazetteer + GNIS, city-level | reproducible, public domain, no rate limits; public geocoders forbid or throttle bulk use | exit-level precision is needed → OSM `motorway_junction` exit refs |
+| Corridor width | 10 miles | city centroids sit 1–3 miles from the interchange; truck stops are within ~2 miles of it | many false positives from parallel highways → narrower + exit-level data |
+| Duplicate prices | mean + sample count | rows have no timestamp; mean is auditable | a date column appears → latest |
+| Starting fuel | empty tank, first stop within range | the whole trip's fuel is bought en route, so the cost is comparable across routes | drivers leave full → `initial_fuel_gallons` parameter |
+| Stops storage | JSON snapshot on the trip | a stop's price is a point-in-time fact | cross-trip analytics on stations → normalise |
+| Caching | Redis, keyed by provider + coordinates rounded to 4 dp, 24 h | the external call is the slow part; errors are never cached | — |
+
+## Assumptions and scope
+
+- Stops are assumed to be on the route; detour distance to a station is not modelled.
+- Prices are the supplied file's values; no live prices, fuel-card discounts or state fuel taxes.
+- Under the empty-tank assumption every trip needs at least one stop. A route with no station
+  within range (some corridors in California and the Pacific Northwest) returns `422` with the
+  mile where coverage breaks.
+- The planner may produce small top-ups when prices creep up along the route. That is cost-optimal
+  but a real fleet would add a minimum purchase or a per-stop penalty, which turns the problem
+  into a dynamic program.
+- No authentication or rate limiting; the API is meant to sit behind a gateway.
+
+## Performance
+
+Measured on the included data (Docker on a laptop):
+
+| Step | Time |
+|---|---|
+| resolve `"City, ST"` | 1–2 ms |
+| OSRM call (uncached) | 200–1,200 ms |
+| route from Redis | ~1 ms |
+| corridor query, NYC→LA (1,752-point line) | ~55 ms |
+| planner, NYC→LA (459 candidate stations) | ~19 ms |
+| **whole request, warm** | **~20–60 ms** |
+
+Every request logs a JSON line with `duration_ms`.
+
+## Project structure
+
+```
+config/      settings (base/local/test/prod), urls
+core/        health endpoint, request logging, uniform error handler
+geo/         Place model, Gazetteer/GNIS import, "City, ST" resolver
+stations/    Station model, price-file import, corridor selector (PostGIS)
+routing/     RoutingProvider interface, OSRM adapter, cached route service
+trips/       fuel planner, Trip model, planning service, API, map page
+data/        the price file and the place data, with provenance
+tests/       pytest suite mirroring the apps
+```
+
+Views are thin; business logic lives in `services`/`selectors`/`planner`; external calls sit
+behind adapters.
+
+## Testing and tooling
+
+```sh
+make test     # pytest, ~290 tests, needs the compose stack
+make lint     # ruff check + ruff format --check
+make format
+```
+
+Tests use a real PostGIS database and a local-memory cache; the only thing stubbed is the routing
+HTTP call (`respx`). Dependencies are locked with `uv` (`uv.lock`); `pre-commit` runs ruff.
+
+## Configuration
+
+All settings come from the environment (`.env.example`):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DATABASE_URL` | `postgis://fuel:fuel@db:5432/fuel` | PostGIS connection |
+| `REDIS_URL` | `redis://redis:6379/1` | cache |
+| `OSRM_BASE_URL` | `https://router.project-osrm.org` | routing engine |
+| `ROUTING_TIMEOUT_SECONDS` | `10` | per-request timeout |
+| `ROUTE_CACHE_SECONDS` | `86400` | route cache TTL |
+| `FUEL_CORRIDOR_MILES` | `10` | corridor half-width |
+| `VEHICLE_MAX_RANGE_MILES`, `VEHICLE_MPG` | `500`, `10` | defaults, overridable per request |
+
+## With more time
+
+- Model detours: price each station's off-route distance into the plan.
+- A per-stop penalty or minimum purchase, solved with a DP over (station, fuel level).
+- Exit-level station positions from OpenStreetMap `motorway_junction` refs.
+- Negative caching of `no_route` results; a self-hosted OSRM with an `avoid_countries` option.
+- API keys and throttling; a multi-stage Docker build; GCP deployment (Cloud Run + Cloud SQL + Memorystore).
