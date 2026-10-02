@@ -95,7 +95,7 @@
   const money = (value) => `$${value}`;
 
   L.marker([data.origin.lat, data.origin.lng], { icon: pin("start", ICONS.truck) }).addTo(map)
-    .bindPopup(`<b>Start</b><br>${data.origin.label}<br><span style="color:#6b7280">tank empty, first stop within range</span>`);
+    .bindPopup(`<b>Start</b><br>${data.origin.label}<br><span style="color:#6b7280">reserve to reach the first stop, billed there</span>`);
   L.marker([data.destination.lat, data.destination.lng], { icon: pin("finish", ICONS.flag) }).addTo(map)
     .bindPopup(`<b>Finish</b><br>${data.destination.label}<br><span style="color:#6b7280">mile ${distanceMiles}</span>`);
 
@@ -117,7 +117,7 @@
   };
   const leg = (miles) => `<div class="leg">${miles.toFixed(1)} mi</div>`;
 
-  item("start", ICONS.truck, `<div class="card"><div class="name">${data.origin.label}</div><div class="meta">Start · tank empty</div></div>`,
+  item("start", ICONS.truck, `<div class="card"><div class="name">${data.origin.label}</div><div class="meta">Start · reserve billed at the first stop</div></div>`,
     () => map.flyTo([data.origin.lat, data.origin.lng], 9));
   let previousMile = 0;
   data.stops.forEach((stop, index) => {

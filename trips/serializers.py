@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.urls import reverse
 from drf_spectacular.utils import extend_schema_field
@@ -5,6 +7,7 @@ from rest_framework import serializers
 
 from geo.services.resolver import ResolvedLocation, resolve_coordinates, resolve_text
 from trips.models import Trip
+from trips.planner import fuel_cost
 from trips.services import TripRequest
 
 LOCATION_SCHEMA = {
@@ -50,6 +53,20 @@ class TripRequestSerializer(serializers.Serializer):
     mpg = serializers.FloatField(
         min_value=1, max_value=50, default=lambda: settings.FUEL_PLANNING["MPG"]
     )
+    initial_fuel_gallons = serializers.FloatField(
+        min_value=0,
+        required=False,
+        default=0,
+        help_text="Fuel already in the tank at the origin; it is not billed. "
+        "At most the tank capacity (max_range_miles / mpg).",
+    )
+
+    def validate(self, attrs: dict) -> dict:
+        capacity = attrs["max_range_miles"] / attrs["mpg"]
+        if attrs["initial_fuel_gallons"] > capacity:
+            message = f"Cannot exceed the tank capacity of {capacity:.2f} gallons."
+            raise serializers.ValidationError({"initial_fuel_gallons": message})
+        return attrs
 
     def to_trip_request(self) -> TripRequest:
         return TripRequest(**self.validated_data)
@@ -95,6 +112,14 @@ class TotalsSerializer(serializers.Serializer):
     stops = serializers.IntegerField()
 
 
+class StartingFuelSerializer(serializers.Serializer):
+    free_gallons = serializers.DecimalField(max_digits=8, decimal_places=3)
+    reserve_gallons = serializers.DecimalField(max_digits=8, decimal_places=3)
+    reserve_billed_at_stop = serializers.IntegerField(allow_null=True)
+    reserve_cost = serializers.DecimalField(max_digits=10, decimal_places=2)
+    trip_gallons = serializers.DecimalField(max_digits=8, decimal_places=3)
+
+
 class LinksSerializer(serializers.Serializer):
     self = serializers.CharField()
     map = serializers.CharField()
@@ -107,6 +132,7 @@ class TripSerializer(serializers.ModelSerializer):
     route = serializers.SerializerMethodField()
     stops = StopSerializer(many=True)
     totals = serializers.SerializerMethodField()
+    starting_fuel = serializers.SerializerMethodField()
     links = serializers.SerializerMethodField()
 
     class Meta:
@@ -121,6 +147,7 @@ class TripSerializer(serializers.ModelSerializer):
             "route",
             "stops",
             "totals",
+            "starting_fuel",
             "links",
             "created_at",
         ]
@@ -163,6 +190,25 @@ class TripSerializer(serializers.ModelSerializer):
     def get_totals(self, trip: Trip) -> dict:
         return TotalsSerializer(
             {"gallons": trip.total_gallons, "cost": trip.total_cost, "stops": len(trip.stops)}
+        ).data
+
+    @extend_schema_field(StartingFuelSerializer)
+    def get_starting_fuel(self, trip: Trip) -> dict:
+        free = trip.initial_fuel_gallons
+        reserve = Decimal(0)
+        reserve_cost = Decimal(0)
+        if trip.stops:
+            first = trip.stops[0]
+            reserve = max(Decimal(str(first["route_mile"])) / trip.mpg - free, Decimal(0))
+            reserve_cost = fuel_cost(float(reserve), Decimal(first["price_per_gallon"]))
+        return StartingFuelSerializer(
+            {
+                "free_gallons": free,
+                "reserve_gallons": reserve,
+                "reserve_billed_at_stop": 1 if reserve > 0 else None,
+                "reserve_cost": reserve_cost,
+                "trip_gallons": trip.distance_miles / trip.mpg,
+            }
         ).data
 
     @extend_schema_field(LinksSerializer)

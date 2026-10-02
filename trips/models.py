@@ -15,6 +15,7 @@ class Trip(models.Model):
     duration_minutes = models.PositiveIntegerField()
     max_range_miles = models.DecimalField(max_digits=6, decimal_places=1)
     mpg = models.DecimalField(max_digits=5, decimal_places=2)
+    initial_fuel_gallons = models.DecimalField(max_digits=8, decimal_places=3, default=0)
     stops = models.JSONField(encoder=DjangoJSONEncoder)
     total_gallons = models.DecimalField(max_digits=8, decimal_places=3)
     total_cost = models.DecimalField(max_digits=10, decimal_places=2)

@@ -20,6 +20,7 @@ class TripRequest:
     destination: ResolvedLocation
     max_range_miles: float
     mpg: float
+    initial_fuel_gallons: float = 0.0
 
 
 def plan_trip(request: TripRequest) -> Trip:
@@ -36,7 +37,11 @@ def plan_trip(request: TripRequest) -> Trip:
     ]
     try:
         plan = plan_fuel_stops(
-            candidates, route.distance_miles, request.max_range_miles, request.mpg
+            candidates,
+            route.distance_miles,
+            request.max_range_miles,
+            request.mpg,
+            initial_fuel_gallons=request.initial_fuel_gallons,
         )
     except NoFeasiblePlanError as exc:
         exc.details.update(_route_details(route))
@@ -53,6 +58,7 @@ def plan_trip(request: TripRequest) -> Trip:
         duration_minutes=route.duration_minutes,
         max_range_miles=_decimal(request.max_range_miles, "0.1"),
         mpg=_decimal(request.mpg, "0.01"),
+        initial_fuel_gallons=_decimal(request.initial_fuel_gallons, "0.001"),
         stops=[
             _stop_snapshot(sequence, stop, stations_by_id[stop.station.id])
             for sequence, stop in enumerate(plan.stops, start=1)

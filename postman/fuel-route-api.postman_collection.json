@@ -49,6 +49,31 @@
       }
     },
     {
+      "name": "Plan trip - fuel already in the tank",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('created with free starting fuel', () => {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().starting_fuel.free_gallons).to.eql('30.000');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/trips/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"origin\": \"Dallas, TX\",\n  \"destination\": \"Denver, CO\",\n  \"initial_fuel_gallons\": 30\n}"
+        }
+      }
+    },
+    {
       "name": "Get trip",
       "request": {"method": "GET", "url": "{{base_url}}/api/v1/trips/{{trip_id}}/"}
     },

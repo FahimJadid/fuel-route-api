@@ -139,19 +139,23 @@ Content-Type: application/json
     }
   ],
   "totals": {"gallons": "77.938", "cost": "211.07", "stops": 2},
+  "starting_fuel": {"free_gallons": "0.000", "reserve_gallons": "17.550", "reserve_billed_at_stop": 1,
+                    "reserve_cost": "47.16", "trip_gallons": "77.940"},
   "links": {"self": "http://localhost:8000/api/v1/trips/5153c3a0-.../",
             "map": "http://localhost:8000/api/v1/trips/5153c3a0-.../map/"},
   "created_at": "2026-10-02T05:15:22.118415Z"
 }
 ```
 
-`links.map` opens an HTML page with the route and the stops drawn on a map.
+`links.map` opens an HTML page with the route and the stops drawn on a map. `starting_fuel`
+breaks down the reserve: the first stop's `gallons` already include the 17.55 gallons burned to
+reach it, billed at that stop's price; `trip_gallons` equals `free_gallons` plus `totals.gallons`.
 
 ## API
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/trips/` | Plan a trip. Body: `origin`, `destination` (each either `"City, ST"` or `{"lat", "lng"}`), optional `max_range_miles` (50–2000, default 500) and `mpg` (1–50, default 10). Returns `201`. |
+| `POST` | `/api/v1/trips/` | Plan a trip. Body: `origin`, `destination` (each either `"City, ST"` or `{"lat", "lng"}`), optional `max_range_miles` (50–2000, default 500), `mpg` (1–50, default 10) and `initial_fuel_gallons` (free fuel already in the tank, default 0, at most `max_range_miles / mpg`). Returns `201`. |
 | `GET` | `/api/v1/trips/{id}/` | Fetch a planned trip. |
 | `GET` | `/api/v1/trips/{id}/map/` | The same trip rendered on a Leaflet map (HTML). |
 | `GET` | `/api/v1/health/` | Database and cache health; `503` when either is down. |
@@ -190,15 +194,20 @@ Every error has the same shape:
 
 ### The fuel planner
 
-The vehicle starts with an empty tank, so the first stop must be within `max_range_miles` of the
-origin and is billed for the fuel burned to reach it. From any stop the rule is the classic one
-for the gas-station problem on a fixed path (Khuller, Malekian & Mestre, 2007):
+The truck starts with just enough reserve to reach its first stop, which must lie within
+`max_range_miles` of the origin. That reserve is billed at the first stop's price, as if the driver
+had filled there before leaving. Optionally the caller declares fuel already in the tank with
+`initial_fuel_gallons`; it is free, and only the shortfall to reach the first stop is billed. With
+enough free fuel to cover the whole trip the plan has no stops and costs nothing. From any stop
+the rule is the classic one for the gas-station problem on a fixed path (Khuller, Malekian &
+Mestre, 2007):
 
 - if a **cheaper** station is reachable on a full tank, buy **just enough** to get there;
 - otherwise **fill the tank** and drive to the **cheapest** reachable station (ties go to the farther one).
 
 That greedy is optimal for a fixed path. Every feasible first stop is evaluated and the cheapest
-plan is kept. Total gallons always equal `distance / mpg`, so the total cost is auditable. The
+plan is kept. Purchased gallons plus free gallons always equal `distance / mpg`, so the total cost
+is auditable; the response's `starting_fuel` block shows the reserve and what it cost. The
 implementation is `trips/planner.py`; `tests/trips/test_planner.py` checks the edge cases and runs
 200 seeded random instances against an independent exact shortest-path reference, asserting the
 greedy never costs more.
@@ -230,7 +239,7 @@ projects each station onto the line with `ST_LineLocatePoint` to get its mile al
 | Geocoding | offline Census Gazetteer + GNIS, city-level | reproducible, public domain, no rate limits; public geocoders forbid or throttle bulk use | exit-level precision is needed → OSM `motorway_junction` exit refs |
 | Corridor width | 10 miles | city centroids sit 1–3 miles from the interchange; truck stops are within ~2 miles of it | many false positives from parallel highways → narrower + exit-level data |
 | Duplicate prices | mean + sample count | rows have no timestamp; mean is auditable | a date column appears → latest |
-| Starting fuel | empty tank, first stop within range | the whole trip's fuel is bought en route, so the cost is comparable across routes | drivers leave full → `initial_fuel_gallons` parameter |
+| Starting fuel | reserve billed at the first stop; optional free fuel via `initial_fuel_gallons` | by default the whole trip's fuel is priced en route, so costs are comparable across routes; a fleet that leaves the yard full passes the tank level | prices should reflect where the reserve was really bought → a `reserve_price` input |
 | Stops storage | JSON snapshot on the trip | a stop's price is a point-in-time fact | cross-trip analytics on stations → normalise |
 | Caching | Redis, keyed by provider + coordinates rounded to 4 dp, 24 h | the external call is the slow part; errors are never cached | — |
 
@@ -238,9 +247,11 @@ projects each station onto the line with `ST_LineLocatePoint` to get its mile al
 
 - Stops are assumed to be on the route; detour distance to a station is not modelled.
 - Prices are the supplied file's values; no live prices, fuel-card discounts or state fuel taxes.
-- Under the empty-tank assumption every trip needs at least one stop. A route with no station
-  within range (some corridors in California and the Pacific Northwest) returns `422` with the
-  mile where coverage breaks.
+- The reserve to reach the first stop is billed at that stop, so by default every trip has at
+  least one stop. A route with no station within range (some corridors in California and the
+  Pacific Northwest) returns `422` with the mile where coverage breaks. With enough
+  `initial_fuel_gallons` to cover the whole distance a trip legitimately returns zero stops and
+  `$0`.
 - The planner may produce small top-ups when prices creep up along the route. That is cost-optimal
   but a real fleet would add a minimum purchase or a per-stop penalty, which turns the problem
   into a dynamic program.
