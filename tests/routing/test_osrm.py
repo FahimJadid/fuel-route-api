@@ -26,9 +26,19 @@ OK_PAYLOAD = {
 }
 
 
+MIRROR_URL = "https://mirror.test/routed-car"
+
+
 @pytest.fixture
 def provider():
-    return OsrmProvider(base_url=BASE_URL, timeout_seconds=1, user_agent="test-agent")
+    return OsrmProvider(base_urls=[BASE_URL], timeout_seconds=1, user_agent="test-agent")
+
+
+@pytest.fixture
+def mirrored_provider():
+    return OsrmProvider(
+        base_urls=[BASE_URL, MIRROR_URL], timeout_seconds=1, user_agent="test-agent"
+    )
 
 
 @respx.mock
@@ -86,3 +96,34 @@ def test_repeated_timeouts_become_routing_unavailable(provider):
 
     with pytest.raises(RoutingUnavailableError):
         provider.route(DALLAS, DENVER)
+
+
+@respx.mock
+def test_timeout_on_the_first_host_fails_over_to_the_mirror(mirrored_provider):
+    primary = respx.get(f"{BASE_URL}{ROUTE_PATH}").mock(side_effect=httpx.ConnectTimeout("down"))
+    mirror = respx.get(f"{MIRROR_URL}{ROUTE_PATH}").mock(
+        return_value=httpx.Response(200, json=OK_PAYLOAD)
+    )
+
+    route = mirrored_provider.route(DALLAS, DENVER)
+
+    assert primary.call_count == 1
+    assert mirror.call_count == 1
+    assert route.duration_minutes == 721
+
+
+@respx.mock
+def test_server_error_on_the_first_host_fails_over_to_the_mirror(mirrored_provider):
+    respx.get(f"{BASE_URL}{ROUTE_PATH}").mock(return_value=httpx.Response(503))
+    respx.get(f"{MIRROR_URL}{ROUTE_PATH}").mock(return_value=httpx.Response(200, json=OK_PAYLOAD))
+
+    assert mirrored_provider.route(DALLAS, DENVER).distance_miles == pytest.approx(797.2, abs=0.1)
+
+
+@respx.mock
+def test_both_hosts_down_is_routing_unavailable(mirrored_provider):
+    respx.get(f"{BASE_URL}{ROUTE_PATH}").mock(side_effect=httpx.ConnectTimeout("down"))
+    respx.get(f"{MIRROR_URL}{ROUTE_PATH}").mock(return_value=httpx.Response(502))
+
+    with pytest.raises(RoutingUnavailableError):
+        mirrored_provider.route(DALLAS, DENVER)

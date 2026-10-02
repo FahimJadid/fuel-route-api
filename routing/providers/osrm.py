@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 
 import httpx
 
@@ -12,14 +13,13 @@ ATTEMPTS = 2
 
 
 class OsrmProvider:
+    """Public OSRM deployments share one API; attempts rotate through the configured hosts."""
+
     name = "osrm"
 
-    def __init__(self, base_url: str, timeout_seconds: float, user_agent: str) -> None:
-        self._client = httpx.Client(
-            base_url=base_url,
-            timeout=timeout_seconds,
-            headers={"User-Agent": user_agent},
-        )
+    def __init__(self, base_urls: Sequence[str], timeout_seconds: float, user_agent: str) -> None:
+        self._base_urls = [url.rstrip("/") for url in base_urls]
+        self._client = httpx.Client(timeout=timeout_seconds, headers={"User-Agent": user_agent})
 
     def route(self, origin: Coordinate, destination: Coordinate) -> Route:
         path = f"/route/v1/driving/{origin.lng},{origin.lat};{destination.lng},{destination.lat}"
@@ -30,16 +30,23 @@ class OsrmProvider:
         return _parse_route(payload["routes"][0])
 
     def _get(self, path: str, params: dict[str, str]) -> dict:
-        for attempt in range(1, ATTEMPTS + 1):
+        for attempt in range(ATTEMPTS):
+            base_url = self._base_urls[attempt % len(self._base_urls)]
+            last = attempt == ATTEMPTS - 1
             try:
-                response = self._client.get(path, params=params)
+                response = self._client.get(base_url + path, params=params)
             except httpx.TransportError as exc:
-                logger.warning("OSRM request failed", extra={"attempt": attempt, "error": str(exc)})
-                if attempt == ATTEMPTS:
+                logger.warning("OSRM request failed", extra={"host": base_url, "error": str(exc)})
+                if last:
                     raise RoutingUnavailableError("Routing service did not respond.") from exc
                 continue
             if response.status_code >= 500:
-                raise RoutingUnavailableError("Routing service returned an error.")
+                logger.warning(
+                    "OSRM server error", extra={"host": base_url, "status": response.status_code}
+                )
+                if last:
+                    raise RoutingUnavailableError("Routing service returned an error.")
+                continue
             try:
                 return response.json()
             except ValueError as exc:

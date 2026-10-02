@@ -30,7 +30,7 @@ def get_route(origin: Coordinate, destination: Coordinate) -> Route:
 def get_routing_provider() -> RoutingProvider:
     config = settings.ROUTING
     return OsrmProvider(
-        base_url=config["OSRM_BASE_URL"],
+        base_urls=config["OSRM_BASE_URLS"],
         timeout_seconds=config["TIMEOUT_SECONDS"],
         user_agent=config["USER_AGENT"],
     )

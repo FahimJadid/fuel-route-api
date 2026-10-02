@@ -173,7 +173,7 @@ Every error has the same shape:
 | 400 | `place_not_found`, `outside_usa` | the place name is unknown, or the coordinates fall outside the 48 contiguous states (checked against Census state boundaries) |
 | 422 | `no_feasible_plan` | no station within range somewhere along the route; `details` has `from_mile` and the route |
 | 422 | `no_route` | the routing engine found no drivable route |
-| 503 | `routing_unavailable` | the routing engine timed out or failed |
+| 503 | `routing_unavailable` | both routing deployments timed out or failed |
 | 404 | `not_found` | unknown trip id |
 
 ## How it works
@@ -234,7 +234,7 @@ projects each station onto the line with `ST_LineLocatePoint` to get its mile al
 
 | Topic | Choice | Why | Would reconsider if |
 |---|---|---|---|
-| Routing API | Public OSRM behind a `RoutingProvider` adapter | no key for reviewers, returns GeoJSON, ~200 ms; swappable | production traffic → self-hosted OSRM or OpenRouteService |
+| Routing API | Public OSRM behind a `RoutingProvider` adapter, failing over between two independent deployments (project-osrm.org, FOSSGIS) | no key for reviewers, returns GeoJSON, ~200 ms; same engine and data on both hosts, so a failover changes availability, not answers | production traffic → self-hosted OSRM or OpenRouteService |
 | Route geometry | fetch `overview=full`, simplify to 0.001° with GEOS | OSRM's own simplification gave 29 points for 795 miles — useless for a corridor; ours keeps ~1,700 points for a cross-country route | — |
 | Geocoding | offline Census Gazetteer + GNIS, city-level | reproducible, public domain, no rate limits; public geocoders forbid or throttle bulk use | exit-level precision is needed → OSM `motorway_junction` exit refs |
 | Corridor width | 10 miles | city centroids sit 1–3 miles from the interchange; truck stops are within ~2 miles of it | many false positives from parallel highways → narrower + exit-level data |
@@ -315,7 +315,7 @@ used by the compose stack.
 | `DATABASE_URL` | yes | `postgis://fuel:fuel@db:5432/fuel` | PostGIS connection |
 | `REDIS_URL` | yes | `redis://redis:6379/1` | cache |
 | `ALLOWED_HOSTS` | prod only | `localhost,127.0.0.1` | comma-separated hosts |
-| `OSRM_BASE_URL` | no | `https://router.project-osrm.org` | routing engine |
+| `OSRM_BASE_URLS` | no | `https://router.project-osrm.org,https://routing.openstreetmap.de/routed-car` | routing engines, tried in order on timeouts or 5xx |
 | `ROUTING_TIMEOUT_SECONDS` | no | `10` | per-request timeout |
 | `ROUTE_CACHE_SECONDS` | no | `86400` | route cache TTL |
 | `FUEL_CORRIDOR_MILES` | no | `10` | corridor half-width |

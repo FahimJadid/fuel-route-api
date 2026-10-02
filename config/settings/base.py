@@ -93,7 +93,13 @@ LOGGING = {
 }
 
 ROUTING = {
-    "OSRM_BASE_URL": env("OSRM_BASE_URL", default="https://router.project-osrm.org"),
+    "OSRM_BASE_URLS": env.list(
+        "OSRM_BASE_URLS",
+        default=[
+            "https://router.project-osrm.org",
+            "https://routing.openstreetmap.de/routed-car",
+        ],
+    ),
     "TIMEOUT_SECONDS": env.float("ROUTING_TIMEOUT_SECONDS", default=10.0),
     "USER_AGENT": "fuel-route-api/0.1",
     "SIMPLIFY_TOLERANCE_DEGREES": 0.001,
