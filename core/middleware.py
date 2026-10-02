@@ -14,6 +14,8 @@ class RequestLoggingMiddleware:
     def __call__(self, request: HttpRequest) -> HttpResponse:
         started = time.perf_counter()
         response = self.get_response(request)
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
+        response["X-Response-Time-Ms"] = str(duration_ms)
         logger.info(
             "%s %s",
             request.method,
@@ -22,7 +24,7 @@ class RequestLoggingMiddleware:
                 "method": request.method,
                 "path": request.path,
                 "status": response.status_code,
-                "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+                "duration_ms": duration_ms,
             },
         )
         return response

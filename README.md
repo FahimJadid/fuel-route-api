@@ -246,6 +246,10 @@ projects each station onto the line with `ST_LineLocatePoint` to get its mile al
 ## Assumptions and scope
 
 - Stops are assumed to be on the route; detour distance to a station is not modelled.
+- Routes use OSRM's car profile; truck-specific restrictions (weight, height, hazmat) are not
+  applied. A route whose shortest path crosses Canada (Detroit → Buffalo) is accepted as the
+  router returns it, but only US stations are known, so that stretch has no fuel coverage.
+- Origin equal to destination is valid: 0 miles, no stops, `$0`.
 - Prices are the supplied file's values; no live prices, fuel-card discounts or state fuel taxes.
 - The reserve to reach the first stop is billed at that stop, so by default every trip has at
   least one stop. A route with no station within range (some corridors in California and the
@@ -270,7 +274,8 @@ Measured on the included data (Docker on a laptop):
 | planner, NYC→LA (459 candidate stations) | ~19 ms |
 | **whole request, warm** | **~20–60 ms** |
 
-Every request logs a JSON line with `duration_ms`.
+Every request logs a JSON line with `duration_ms` and returns the same figure in an
+`X-Response-Time-Ms` header, so the server's own time can be read next to the client's.
 
 ## Project structure
 

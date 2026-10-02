@@ -45,6 +45,8 @@ def _cache_key(provider: str, origin: Coordinate, destination: Coordinate) -> st
 
 
 def _simplify(geometry: tuple[tuple[float, float], ...]) -> tuple[tuple[float, float], ...]:
+    if len(geometry) < 2:
+        return (geometry[0], geometry[0])
     tolerance = settings.ROUTING["SIMPLIFY_TOLERANCE_DEGREES"]
     simplified = LineString(geometry, srid=4326).simplify(tolerance, preserve_topology=True)
     return tuple(simplified.coords)

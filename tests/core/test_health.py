@@ -11,6 +11,13 @@ def test_health_reports_ok_when_dependencies_respond(api_client):
 
 
 @pytest.mark.django_db
+def test_every_response_carries_its_server_time(api_client):
+    response = api_client.get("/api/v1/health/")
+
+    assert float(response["X-Response-Time-Ms"]) >= 0
+
+
+@pytest.mark.django_db
 def test_health_reports_degraded_when_cache_fails(api_client, monkeypatch):
     def broken_set(*args, **kwargs):
         raise ConnectionError

@@ -41,6 +41,14 @@ def test_get_route_keeps_real_bends(monkeypatch):
     assert route.geometry == bent
 
 
+def test_get_route_pads_a_single_point_geometry_to_a_valid_line(monkeypatch):
+    monkeypatch.setattr(service, "get_routing_provider", lambda: StubProvider(((-96.0, 32.0),)))
+
+    route = service.get_route(ORIGIN, ORIGIN)
+
+    assert route.geometry == ((-96.0, 32.0), (-96.0, 32.0))
+
+
 def test_get_route_serves_repeated_pairs_from_cache(monkeypatch):
     provider = StubProvider()
     monkeypatch.setattr(service, "get_routing_provider", lambda: provider)
