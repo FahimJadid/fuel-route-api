@@ -29,7 +29,10 @@ class TripListView(APIView):
         serializer = TripRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         trip = plan_trip(serializer.to_trip_request())
-        return Response(TripSerializer(trip).data, status=status.HTTP_201_CREATED)
+        return Response(
+            TripSerializer(trip, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class TripDetailView(APIView):
@@ -39,7 +42,7 @@ class TripDetailView(APIView):
     )
     def get(self, request: Request, pk) -> Response:
         trip = get_object_or_404(Trip, pk=pk)
-        return Response(TripSerializer(trip).data)
+        return Response(TripSerializer(trip, context={"request": request}).data)
 
 
 class TripMapView(View):

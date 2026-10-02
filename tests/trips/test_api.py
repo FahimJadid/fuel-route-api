@@ -60,8 +60,8 @@ def test_post_trip_returns_plan_and_get_returns_the_same_trip(api_client, alamos
     assert stop["price_per_gallon"] == "3.250"
     assert stop["gallons"] == 44.0
     assert body["links"] == {
-        "self": f"/api/v1/trips/{body['id']}/",
-        "map": f"/api/v1/trips/{body['id']}/map/",
+        "self": f"http://testserver/api/v1/trips/{body['id']}/",
+        "map": f"http://testserver/api/v1/trips/{body['id']}/map/",
     }
 
     fetched = api_client.get(body["links"]["self"])

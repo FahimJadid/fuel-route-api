@@ -167,7 +167,9 @@ class TripSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(LinksSerializer)
     def get_links(self, trip: Trip) -> dict:
-        return {
-            "self": reverse("trip-detail", kwargs={"pk": trip.pk}),
-            "map": reverse("trip-map", kwargs={"pk": trip.pk}),
-        }
+        return {"self": self._link("trip-detail", trip), "map": self._link("trip-map", trip)}
+
+    def _link(self, url_name: str, trip: Trip) -> str:
+        path = reverse(url_name, kwargs={"pk": trip.pk})
+        request = self.context.get("request")
+        return request.build_absolute_uri(path) if request else path

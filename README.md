@@ -139,7 +139,8 @@ Content-Type: application/json
     }
   ],
   "totals": {"gallons": "77.938", "cost": "211.07", "stops": 2},
-  "links": {"self": "/api/v1/trips/5153c3a0-.../", "map": "/api/v1/trips/5153c3a0-.../map/"},
+  "links": {"self": "http://localhost:8000/api/v1/trips/5153c3a0-.../",
+            "map": "http://localhost:8000/api/v1/trips/5153c3a0-.../map/"},
   "created_at": "2026-10-02T05:15:22.118415Z"
 }
 ```
