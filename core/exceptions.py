@@ -1,6 +1,8 @@
 import logging
 from typing import Any
 
+from django.core.exceptions import PermissionDenied
+from django.http import Http404
 from rest_framework import status
 from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
@@ -55,7 +57,16 @@ def _reshape_drf_response(exc: Exception, response: Response) -> Response:
         response.data = error_payload("validation_error", "Invalid request.", exc.detail)
         return response
 
-    code = getattr(exc, "default_code", "error") if isinstance(exc, APIException) else "error"
     message = response.data.get("detail", "") if isinstance(response.data, dict) else ""
-    response.data = error_payload(str(code), str(message))
+    response.data = error_payload(_code_for(exc), str(message))
     return response
+
+
+def _code_for(exc: Exception) -> str:
+    if isinstance(exc, APIException):
+        return str(exc.default_code)
+    if isinstance(exc, Http404):
+        return "not_found"
+    if isinstance(exc, PermissionDenied):
+        return "permission_denied"
+    return "error"

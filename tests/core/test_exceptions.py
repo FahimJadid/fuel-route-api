@@ -1,3 +1,4 @@
+from django.http import Http404
 from rest_framework.exceptions import MethodNotAllowed, ValidationError
 from rest_framework.test import APIRequestFactory
 
@@ -55,6 +56,13 @@ def test_other_drf_exceptions_use_their_default_code():
     assert response.status_code == 405
     assert response.data["error"]["code"] == "method_not_allowed"
     assert response.data["error"]["message"] == 'Method "PUT" not allowed.'
+
+
+def test_django_http404_is_reported_as_not_found():
+    response = exception_handler(Http404("No Trip matches the given query."), _context())
+
+    assert response.status_code == 404
+    assert response.data["error"]["code"] == "not_found"
 
 
 def test_unexpected_exception_becomes_generic_500():
