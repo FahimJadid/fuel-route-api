@@ -99,11 +99,14 @@ class StopSerializer(serializers.Serializer):
     sequence = serializers.IntegerField()
     station = StopStationSerializer()
     route_mile = serializers.FloatField()
+    detour_miles = serializers.FloatField(required=False)
     price_per_gallon = serializers.DecimalField(max_digits=6, decimal_places=3)
     gallons = serializers.FloatField()
     cost = serializers.DecimalField(max_digits=10, decimal_places=2)
     fuel_on_arrival_gallons = serializers.FloatField()
     fuel_on_departure_gallons = serializers.FloatField()
+    action = serializers.ChoiceField(choices=["fill_up", "partial", "final_leg"], required=False)
+    reason = serializers.CharField(required=False)
 
 
 class TotalsSerializer(serializers.Serializer):
@@ -120,6 +123,26 @@ class StartingFuelSerializer(serializers.Serializer):
     trip_gallons = serializers.DecimalField(max_digits=8, decimal_places=3)
 
 
+class SavingsSerializer(serializers.Serializer):
+    baseline = serializers.CharField()
+    baseline_cost = serializers.DecimalField(max_digits=10, decimal_places=2)
+    baseline_stops = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    percent = serializers.DecimalField(max_digits=5, decimal_places=1)
+
+
+class AssumptionsSerializer(serializers.Serializer):
+    max_range_miles = serializers.DecimalField(max_digits=6, decimal_places=1)
+    mpg = serializers.DecimalField(max_digits=5, decimal_places=2)
+    tank_gallons = serializers.DecimalField(max_digits=7, decimal_places=2)
+    initial_fuel_gallons = serializers.DecimalField(max_digits=8, decimal_places=3)
+    corridor_miles = serializers.DecimalField(max_digits=4, decimal_places=1)
+    minimum_purchase_gallons = serializers.IntegerField()
+    reserve_rule = serializers.CharField()
+    detour_cost_modelled = serializers.BooleanField()
+    routing_profile = serializers.CharField()
+
+
 class LinksSerializer(serializers.Serializer):
     self = serializers.CharField()
     map = serializers.CharField()
@@ -133,6 +156,8 @@ class TripSerializer(serializers.ModelSerializer):
     stops = StopSerializer(many=True)
     totals = serializers.SerializerMethodField()
     starting_fuel = serializers.SerializerMethodField()
+    savings = serializers.SerializerMethodField()
+    assumptions = serializers.SerializerMethodField()
     links = serializers.SerializerMethodField()
 
     class Meta:
@@ -148,6 +173,8 @@ class TripSerializer(serializers.ModelSerializer):
             "stops",
             "totals",
             "starting_fuel",
+            "savings",
+            "assumptions",
             "links",
             "created_at",
         ]
@@ -208,6 +235,38 @@ class TripSerializer(serializers.ModelSerializer):
                 "reserve_billed_at_stop": 1 if reserve > 0 else None,
                 "reserve_cost": reserve_cost,
                 "trip_gallons": trip.distance_miles / trip.mpg,
+            }
+        ).data
+
+    @extend_schema_field(SavingsSerializer(allow_null=True))
+    def get_savings(self, trip: Trip) -> dict | None:
+        if trip.baseline_cost is None:
+            return None
+        amount = trip.baseline_cost - trip.total_cost
+        percent = amount / trip.baseline_cost * 100 if trip.baseline_cost else Decimal(0)
+        return SavingsSerializer(
+            {
+                "baseline": "fill the tank at the farthest reachable station",
+                "baseline_cost": trip.baseline_cost,
+                "baseline_stops": trip.baseline_stops,
+                "amount": amount,
+                "percent": percent,
+            }
+        ).data
+
+    @extend_schema_field(AssumptionsSerializer)
+    def get_assumptions(self, trip: Trip) -> dict:
+        return AssumptionsSerializer(
+            {
+                "max_range_miles": trip.max_range_miles,
+                "mpg": trip.mpg,
+                "tank_gallons": trip.max_range_miles / trip.mpg,
+                "initial_fuel_gallons": trip.initial_fuel_gallons,
+                "corridor_miles": trip.corridor_miles,
+                "minimum_purchase_gallons": 0,
+                "reserve_rule": "fuel needed to reach the first stop is billed at that stop",
+                "detour_cost_modelled": False,
+                "routing_profile": "car",
             }
         ).data
 

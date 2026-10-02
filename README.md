@@ -120,11 +120,14 @@ Content-Type: application/json
       "station": {"id": 2731, "opis_id": 66341, "name": "7-ELEVEN #218", "address": "I-44, EXIT 4",
                   "city": "Harrold", "state": "TX", "lat": 34.06757, "lng": -99.033091},
       "route_mile": 175.5,
+      "detour_miles": 1.1,
       "price_per_gallon": "2.687",
       "gallons": 67.555,
       "cost": "181.52",
       "fuel_on_arrival_gallons": 0.0,
-      "fuel_on_departure_gallons": 67.555
+      "fuel_on_departure_gallons": 67.555,
+      "action": "fill_up",
+      "reason": "Fill the tank: nothing cheaper within range; next stop at mile 367."
     },
     {
       "sequence": 2,
@@ -141,6 +144,12 @@ Content-Type: application/json
   "totals": {"gallons": "77.938", "cost": "211.07", "stops": 2},
   "starting_fuel": {"free_gallons": "0.000", "reserve_gallons": "17.550", "reserve_billed_at_stop": 1,
                     "reserve_cost": "47.16", "trip_gallons": "77.940"},
+  "savings": {"baseline": "fill the tank at the farthest reachable station", "baseline_cost": "...",
+              "baseline_stops": 2, "amount": "...", "percent": "..."},
+  "assumptions": {"max_range_miles": "500.0", "mpg": "10.00", "tank_gallons": "50.00",
+                  "initial_fuel_gallons": "0.000", "corridor_miles": "10.0", "minimum_purchase_gallons": 0,
+                  "reserve_rule": "fuel needed to reach the first stop is billed at that stop",
+                  "detour_cost_modelled": false, "routing_profile": "car"},
   "links": {"self": "http://localhost:8000/api/v1/trips/5153c3a0-.../",
             "map": "http://localhost:8000/api/v1/trips/5153c3a0-.../map/"},
   "created_at": "2026-10-02T05:15:22.118415Z"
@@ -242,6 +251,36 @@ projects each station onto the line with `ST_LineLocatePoint` to get its mile al
 | Starting fuel | reserve billed at the first stop; optional free fuel via `initial_fuel_gallons` | by default the whole trip's fuel is priced en route, so costs are comparable across routes; a fleet that leaves the yard full passes the tank level | prices should reflect where the reserve was really bought → a `reserve_price` input |
 | Stops storage | JSON snapshot on the trip | a stop's price is a point-in-time fact | cross-trip analytics on stations → normalise |
 | Caching | Redis, keyed by provider + coordinates rounded to 4 dp, 24 h | the external call is the slow part; errors are never cached | — |
+
+## Rules, industry mapping and next steps
+
+Every response carries an `assumptions` block (range, mpg, tank, free fuel, corridor, reserve
+rule, minimum purchase, routing profile), a `savings` block comparing the plan with the naive
+"fill the tank at the farthest reachable station" policy run through the same engine, and an
+`action`/`reason` pair on every stop (`fill_up`, `partial`, `final_leg`). That mirrors how fleet
+fuel optimizers (Trimble Expert Fuel, ProMiles) and consumer planners (Tesla, Google Maps EV
+routing, ABRP) work: one prescriptive plan with gallons per stop, the rules stated, and the
+reasoning visible, rather than a menu of alternative plans. The per-stop row — mile, fuel on
+arrival, gallons, price, cost, fuel on departure, detour — is the same shape as ProMiles'
+`FuelOptimizationRow`; the "fill up, or buy just enough to reach cheaper fuel" rule is the one
+ProMiles documents and the one Khuller, Malekian and Mestre proved optimal for a fixed route.
+
+Detours are reported, not priced: `detour_miles` is each station's distance from the route, and
+with a 10-mile corridor the worst case costs about 2 gallons of extra driving at 10 mpg. With
+more time, in the order a fleet would ask for them:
+
+- Per-stop override: tap a stop, see the nearest alternatives with the cost delta, replan.
+- Price the detour into the choice and expose a `max_detour_miles` limit (fleets use ~2 miles).
+- A per-stop time penalty or minimum purchase, which turns the greedy into a dynamic program
+  over (station, fuel level) with a "fewer stops / cheapest" toggle.
+- Two reserves — a minimum on-board level and a required level at the destination.
+- Ex-tax pricing and network discounts, which can change which stop wins.
+- Station eligibility filters (chains, parking, amenities) and price timestamps.
+- A reconciliation endpoint comparing planned with purchased gallons.
+
+Deliberately not planned: alternative complete plans (no shipping product shows them),
+re-routing to chase cheaper fuel or a second routing call, fuel-card enforcement, and live or
+crowd-sourced prices.
 
 ## Assumptions and scope
 
